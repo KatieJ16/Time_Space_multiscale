@@ -178,10 +178,13 @@ class CAE(torch.nn.Module):
             y = y[:, :, 2:-2, 2:-2]
             if verbose:
                 print('chop')
+                print("self.n_filter_groups_each_level = ", self.n_filter_groups_each_level)
             for i in range(1, self.n_filter_groups_each_level['0']):
                 encoded = self._modules['L0_Conv_{}'.format(i)](x)
                 if verbose:
                     print('L0_Conv_{}'.format(i))
+                    print("encoded shape = ", encoded.shape)
+                    print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
                 # print("encoded shape = ", encoded.shape)
                 # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
                 if self.use_maps:
@@ -220,6 +223,8 @@ class CAE(torch.nn.Module):
             if verbose:
                 print('L{}_deConv_0'.format(level))
             y = y[:, :, 2:-2, 2:-2]
+            if verbose:
+                print("chop")
             for i in range(1, self.n_filter_groups_each_level[str(level)]):
                 encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
                 if verbose:

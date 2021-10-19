@@ -7,6 +7,7 @@ from utils import MultiScaleDynamicsDataSet, \
     apply_mask, compute_loss_all_scales
 
 
+
 class Conv2dBlock(torch.nn.Module):
     def __init__(self, num_of_blocks=1, num_of_channels=1, mode='conv', is_widen=True,
                  activation=torch.nn.ReLU(), std=0.02):
@@ -124,6 +125,8 @@ class CAE(torch.nn.Module):
         self.n_levels = n_levels
         self.blocks = n_blocks
         self.use_maps = use_maps
+        if use_maps:
+            pritn("using maps")
 
         # device
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -195,10 +198,17 @@ class CAE(torch.nn.Module):
             print(" self.n_filter_groups_each_level['0'] = ",  self.n_filter_groups_each_level['0'])
             for i in range(1, self.n_filter_groups_each_level['0']):
                 encoded = self._modules['L0_Conv_{}'.format(i)](x)
+
+                print("self.use_maps = ", self.use_maps)
                 if self.use_maps:
+                    print("encoded shape = ", encoded.shape)
+                    print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                    ghj
                     masked_encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
                 else:
                     masked_encoded = encoded
+
+                ghjk
                 if query_hidden:
                     all_hidden['L0_{}'.format(i)] = masked_encoded
                 y += self._modules['L0_deConv_{}'.format(i)](masked_encoded)
@@ -228,6 +238,9 @@ class CAE(torch.nn.Module):
             for i in range(1, self.n_filter_groups_each_level[str(level)]):
                 encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
                 if self.use_maps:
+                    print("encoded shape = ", encoded.shape)
+                    print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                    fghjkl
                     masked_encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
                 else:
                     masked_encoded = encoded

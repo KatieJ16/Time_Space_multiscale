@@ -135,6 +135,7 @@ def apply_mask(data, mask, mask_type='resolved', width=1):
     # convert to unresolved mask
     if mask_type == 'resolved':
         mask = 1 - mask
+        print(mask)
     elif mask_type == 'unresolved':
         mask = mask
     else:
