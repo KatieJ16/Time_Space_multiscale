@@ -178,8 +178,9 @@ class CAE(torch.nn.Module):
             y = y[:, :, 2:-2, 2:-2]
             if verbose:
                 print('chop')
-                print("self.n_filter_groups_each_level = ", self.n_filter_groups_each_level)
+                print("self.n_filter_groups_each_level = ", self.n_filter_groups_each_level['0'])
             for i in range(1, self.n_filter_groups_each_level['0']):
+                print("i  = ", i)
                 encoded = self._modules['L0_Conv_{}'.format(i)](x)
                 if verbose:
                     print('L0_Conv_{}'.format(i))
@@ -525,8 +526,7 @@ class CAE(torch.nn.Module):
                 print('[training set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_train.item(), max_loss_train.item(), loss.item(), global_mean_loss.item(), global_max_loss.item(), global_loss.item()))
                 print('[validation set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_val.item(), max_loss_val.item(), loss_val.item(), global_mean_val_loss.item(), global_max_val_loss.item(), global_val_loss.item()))
             # every 1/10 max_epoch
-
-            if epoch % (max_epoch // 1) == 0 and verbose >0:
+            if epoch % (max_epoch // 10) == 0 and verbose >0:
                 print('epoch [{}/{}]:'.format(epoch, max_epoch))
                 print('[training set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_train.item(), max_loss_train.item(), loss.item(), global_mean_loss.item(), global_max_loss.item(), global_loss.item()))
                 print('[validation set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_val.item(), max_loss_val.item(), loss_val.item(), global_mean_val_loss.item(), global_max_val_loss.item(), global_val_loss.item()))
@@ -627,7 +627,7 @@ def train_net(archs, dataset, max_epoch, batch_size, result_path,
     """
     # preprocess
     n_levels = dataset.n_levels
-    assert n_levels == len(archs), print('levels of dataset and architecture are not consistent!')
+    # assert n_levels == len(archs), print('levels of dataset and architecture are not consistent!')
     if tols is None:
         tols = [None] * n_levels
         use_maps = False
@@ -637,7 +637,8 @@ def train_net(archs, dataset, max_epoch, batch_size, result_path,
     model = None
 
     # training
-    for i in range(n_levels):
+    for i in range(len(archs)):
+    # for i in range(n_levels):
         print("level = ", i)
         print("archs[i] = ", archs[i])
         model = train_net_one_level(arch=archs[i], dataset=dataset, max_epoch=max_epoch,
@@ -759,6 +760,7 @@ def train_net_one_stage(mode, n_filters, dataset, max_epoch, batch_size, result_
 
     # create/load the model
     n_levels = dataset.n_levels
+    print("n_levels = ", n_levels)
     if load_model is None:
         model = CAE(n_levels=n_levels, activation=activation, use_maps=use_maps)
     else:
