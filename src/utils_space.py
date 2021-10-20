@@ -7,6 +7,7 @@ class MultiScaleDynamicsDataSet():
         # load data
         data = np.load(data_path)
         self.data = torch.tensor(data).unsqueeze(1).float()
+        print("self.data.shape = ", self.data.shape)
 #         print("self.data.shape = ", self.data.shape)
 
         #
@@ -55,6 +56,14 @@ class MultiScaleDynamicsDataSet():
             test_data = apply_local_op(test_data, self.device, ave=False)
 
         return train_data, val_data, test_data
+    
+    def obtain_data_at_current_level_all(self, level):
+        train_data = self.data.to(self.device)
+
+        for i in range(self.n_levels - level - 1):
+            train_data = apply_local_op(train_data, self.device, ave=False)
+
+        return train_data
 
 
 
@@ -68,6 +77,7 @@ def apply_local_op(data, device, mode='conv', ave=True):
     :return: processed data
     """
     in_channels, out_channels, _, _ = data.size()
+    print("data.size() = ", data.size())
     n = min(in_channels, out_channels)
     if mode == 'conv':
         op = torch.nn.Conv2d(out_channels, out_channels, 3, stride=2, padding=0).to(device)
