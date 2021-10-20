@@ -56,7 +56,7 @@ class MultiScaleDynamicsDataSet():
             test_data = apply_local_op(test_data, self.device, ave=False)
 
         return train_data, val_data, test_data
-    
+
     def obtain_data_at_current_level_all(self, level):
         train_data = self.data.to(self.device)
 
