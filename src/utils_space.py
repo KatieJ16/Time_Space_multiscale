@@ -77,7 +77,7 @@ def apply_local_op(data, device, mode='conv', ave=True):
     :return: processed data
     """
     in_channels, out_channels, _, _ = data.size()
-    print("data.size() = ", data.size())
+#     print("data.size() = ", data.size())
     n = min(in_channels, out_channels)
     if mode == 'conv':
         op = torch.nn.Conv2d(out_channels, out_channels, 3, stride=2, padding=0).to(device)
