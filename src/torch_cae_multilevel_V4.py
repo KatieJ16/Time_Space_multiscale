@@ -257,11 +257,6 @@ class CAE(torch.nn.Module):
         :param query_hidden: if to query hidden representations
         :return: output of NN, a list of hidden representations at current level
         """
-        # collectors
-        # all_hidden = dict()
-        # all_inputs = dict()
-        # all_outputs = dict()
-
         # forward prop
         assert level >= 0, print('level index should be a non-negative integer!')
         resolved_maps_dict = self.resolved_maps[str(level)]
@@ -273,7 +268,7 @@ class CAE(torch.nn.Module):
                     encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
         else:
             encoded = self._modules['L{}_Conv_0'.format(level)](x)
-            encoded= self.forward(encoded, level-1)_0'.format(level)](decoded)
+            encoded= self.forward(encoded, level-1)
             for i in range(1, self.n_filter_groups_each_level[str(level)]):
                 encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
                 if self.use_maps:
