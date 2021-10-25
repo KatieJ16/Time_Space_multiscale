@@ -266,65 +266,20 @@ class CAE(torch.nn.Module):
         assert level >= 0, print('level index should be a non-negative integer!')
         resolved_maps_dict = self.resolved_maps[str(level)]
         if level == 0:
-            # if query_in_out_each_level:
-            #     all_inputs['0'] = x
             encoded = self._modules['L0_Conv_0'](x)
-            # if query_hidden:
-            #     all_hidden['L0_0'] = encoded
-            # ----- pad -----
-            # encoded = torch.nn.functional.pad(encoded, (1, 1, 1, 1), 'replicate')
-            # ---------------
-            # y = self._modules['L0_deConv_0'](encoded)
-            # chop off the boundaries
-            # y = y[:, :, 2:-2, 2:-2]
             for i in range(1, self.n_filter_groups_each_level['0']):
                 encoded = self._modules['L0_Conv_{}'.format(i)](x)
-                # print("encoded shape = ", encoded.shape)
-                # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
-                # ghjk
                 if self.use_maps:
                     encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
-                # else:
-                #     masked_encoded = encoded
-                # if query_hidden:
-                #     all_hidden['L0_{}'.format(i)] = masked_encoded
-                # y += self._modules['L0_deConv_{}'.format(i)](masked_encoded)
-        #     if query_in_out_each_level:
-        #         all_outputs['0'] = y
         else:
             encoded = self._modules['L{}_Conv_0'.format(level)](x)
-            encoded= self.forward(encoded, level-1)#, query_in_out_each_level, query_hidden)
-            # decoded, ins, outs, hs = \
-            #     self.forward(encoded, level-1, query_in_out_each_level, query_hidden)
-            # # ----- pad -----
-            # decoded = torch.nn.functional.pad(decoded, (1, 1, 1, 1), 'replicate')
-            # ---------------
-            # if query_in_out_each_level:
-            #     all_inputs[str(level)] = x
-            #     all_inputs.update(ins)
-            #     all_outputs.update(outs)
-            # if query_hidden:
-            #     all_hidden.update(hs)
-            #     all_hidden['L{}_0'.format(level)] = encoded
-            # y = self._modules['L{}_deConv_0'.format(level)](decoded)
-            # y = y[:, :, 2:-2, 2:-2]
+            encoded= self.forward(encoded, level-1)_0'.format(level)](decoded)
             for i in range(1, self.n_filter_groups_each_level[str(level)]):
                 encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
                 if self.use_maps:
-                    # print("encoded shape = ", encoded.shape)
-                    # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
-                    #
-                    # hjk
                     encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
-                # else:
-                #     masked_encoded = encoded
-                # if query_hidden:
-                #     all_hidden['L{}_{}'.format(level, i)] = masked_encoded
-                # y += self._modules['L{}_deConv_{}'.format(level, i)](masked_encoded)
-            # if query_in_out_each_level:
-            #     all_outputs[str(level)] = y
 
-        return encoded#, y, all_inputs, all_outputs, all_hidden
+        return encoded
 
     def decode(self, x, level):#, query_in_out_each_level=False, query_hidden=False):
         """
