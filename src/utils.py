@@ -144,11 +144,14 @@ def make_next_layer(data_big, data_small, unresolved, size = 128):
     '''determine the next level make up with new map, old map and unresolved
     All tensors
     '''
-    multi = grow(data_big, size) * (1-grow(unresolved, size)) + grow(data_small, size)*grow(unresolved, size)
+    # size_small = data_small.shape[-1]
+    size_max = data_big.shape[-1]
+    multi = grow(data_big, size_max) * (1-grow(unresolved, size_max)) + grow(data_small, size_max)*grow(unresolved, size_max)
     return multi
 
 def data_of_size(data,size):
-    return decrease_to_size(torch.tensor(data).unsqueeze(1), size)
+    return decrease_to_size(torch.tensor(data).unsqueeze(1), size)[:,0,:,:]
+
 
 def MSE(data1, data2, size_small, tol = 1e-5, size = 128):
     '''
@@ -157,7 +160,15 @@ def MSE(data1, data2, size_small, tol = 1e-5, size = 128):
     '''
     data1 = make_size_4(data1)
     data2 = make_size_4(data2)
-    mse = np.mean((grow(data1, size) - grow(data2, size))**2, axis = 0)
+    size1 = data1.shape[-1]
+    size2 = data2.shape[-1]
+    size_small = min(size1, size2)
+    size_max = max(size1, size2)
+    print("size_small = ", size_small)
+    print("size_max = ", size_max)
+    # loss = torch.nn.MSELoss()
+    # mse = loss(grow(data1, size_max), grow(data2, size_max))
+    mse = np.mean((grow(data1, size_max) - grow(data2, size_max))**2, axis = 0)
 
 
     mse_smaller = decrease_to_size(torch.tensor(mse).unsqueeze(0).unsqueeze(0), size_small)
