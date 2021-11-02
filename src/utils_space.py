@@ -35,7 +35,7 @@ class MultiScaleDynamicsDataSet():
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.map_data = self.map_data.to(self.device)
 
-    def obtain_data_at_current_level(self, level):
+    def obtain_data_at_current_level(self, level,average = False):
         train_data = self.data[self.train_inds].to(self.device)
 
 #         print("train_data shape = ", train_data.shape)
@@ -49,19 +49,19 @@ class MultiScaleDynamicsDataSet():
 
         # print("train_data shape = ", train_data.shape)
         for i in range(self.n_levels - level - 1):
-            train_data = apply_local_op(train_data, self.device, ave=False)
+            train_data = apply_local_op(train_data, self.device, ave=average)
             # print("i = ", i)
             # print("train_data shape = ", train_data.shape)
-            val_data = apply_local_op(val_data, self.device, ave=False)
-            test_data = apply_local_op(test_data, self.device, ave=False)
+            val_data = apply_local_op(val_data, self.device, ave=average)
+            test_data = apply_local_op(test_data, self.device, ave=average)
 
         return train_data, val_data, test_data
 
-    def obtain_data_at_current_level_all(self, level):
+    def obtain_data_at_current_level_all(self, level, average = False):
         train_data = self.data.to(self.device)
 
         for i in range(self.n_levels - level - 1):
-            train_data = apply_local_op(train_data, self.device, ave=False)
+            train_data = apply_local_op(train_data, self.device, ave=average)
 
         return train_data
 
@@ -80,7 +80,7 @@ def apply_local_op(data, device, mode='conv', ave=True):
 #     print("data.size() = ", data.size())
     n = min(in_channels, out_channels)
     if mode == 'conv':
-        op = torch.nn.Conv2d(out_channels, out_channels, 3, stride=2, padding=0).to(device)
+        op = torch.nn.Conv2d(out_channels, out_channels, 2, stride=2, padding=0).to(device)
     elif mode == 'deconv':
         op = torch.nn.ConvTranspose2d(out_channels, out_channels, 3, stride=2, padding=0).to(device)
     else:
@@ -91,7 +91,7 @@ def apply_local_op(data, device, mode='conv', ave=True):
     for i in range(n):
         if mode == 'conv':
             if ave:
-                op.weight.data[i, i, :, :] = torch.ones(op.weight.data[i, i, :, :].size()).to(device) / 9
+                op.weight.data[i, i, :, :] = torch.ones(op.weight.data[i, i, :, :].size()).to(device) / 4
             else:
                 op.weight.data[i, i, 1, 1] = torch.ones(op.weight.data[i, i, 1, 1].size()).to(device)
         elif mode == 'deconv':
