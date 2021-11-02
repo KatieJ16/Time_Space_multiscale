@@ -79,7 +79,7 @@ class ResNet(torch.nn.Module):
         """
         return x_init + self._modules['increment'](x_init)
 
-    def uni_scale_forecast(self, x_init, n_steps):
+    def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
         """
         :param x_init: array of shape n_test x input_dim
         :param n_steps: number of steps forward in terms of dt
@@ -102,7 +102,7 @@ class ResNet(torch.nn.Module):
         # include the initial frame
         steps.insert(0, 0)
         preds.insert(0, torch.tensor(x_init).float().to(self.device))
-
+        
         # interpolations
         preds = torch.stack(preds, 2).detach().numpy()
         cs = scipy.interpolate.interp1d(steps, preds, kind='linear')
@@ -110,7 +110,7 @@ class ResNet(torch.nn.Module):
 
         return y_preds
 
-    def train_net(self, dataset, max_epoch, batch_size, w=1.0, lr=1e-3, model_path=None):
+    def train_net(self, dataset, max_epoch, batch_size, w=1.0, lr=1e-3, model_path=None, threshold = 1e-8):
         """
         :param dataset: a dataset object
         :param max_epoch: maximum number of epochs
@@ -138,7 +138,7 @@ class ResNet(torch.nn.Module):
             train_loss = self.calculate_loss(batch_x, batch_ys, w=w)
             val_loss = self.calculate_loss(dataset.val_x, dataset.val_ys, w=w)
             # ================ early stopping =================
-            if best_loss <= 1e-8:
+            if best_loss <= threshold:
                 print('--> model has reached an accuracy of 1e-8! Finished training!')
                 break
             # =================== backward ====================
@@ -190,7 +190,7 @@ def multi_scale_forecast(x_init, n_steps, models):
     :param n_steps: number of steps forward in terms of dt
     :param models: a list of models
     :return: a torch array of size n_test x n_steps x n_dim
-    
+
     This function is not used in the paper for low efficiency,
     we suggest to use vectorized_multi_scale_forecast() below.
     """
@@ -294,10 +294,3 @@ def vectorized_multi_scale_forecast(x_init, n_steps, models):
     y_preds = torch.tensor(cs(sample_steps)).float()
 
     return y_preds
-
-
-
-
-
-
-
