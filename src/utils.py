@@ -66,7 +66,8 @@ def check_pixel_level_loss(d1, d2, tol, device, w=0.5):
     return loss_summary.max() <= tol, loss_summary, loss_summary <= tol
 
 def obtain_data_at_current_level(data, n_levels, level,average = True):
-    """ goes from n_levels to level"""
+    """ goes from n_levels to level
+    """
     for i in range(n_levels - level - 1):
         data = apply_local_op(data, 'cpu', ave=average)
     return data
@@ -74,13 +75,11 @@ def obtain_data_at_current_level(data, n_levels, level,average = True):
 def decrease_to_size(data, level,average = True):
     """ goes from n_levels to level"""
     current_size = data.shape[-1]
-#     print("current_size = ", current_size)
     if(current_size<= level):
         return data
     while(current_size > level):
         data = apply_local_op(data.float(), 'cpu', ave=average)
         current_size = data.shape[-1]
-#         print("current_size = ", current_size)
     return data
 
 def apply_local_op(data, device, mode='conv', ave=True):
@@ -128,6 +127,15 @@ def apply_local_op(data, device, mode='conv', ave=True):
 def grow(data, size_full=128):
     '''
     Grow tensor from any size to the full size default 128
+    
+    Takes data of a size  and converts to size (n_points, size_full, size_full) (default is 128)
+    
+    Inputs:
+        data: array or tensor of size (dim, dim), (n_points, dim, dim), or (n_points, 1, dim, dim)
+        size: dim size of final answer, must be equal or larger than input dim, default 128
+        
+    Output:
+        averaged_full: tensor size (n_points, size_full, size_full)
     '''
     data = make_size_4(data)
     n_points, _, size_small, _ = data.shape
@@ -150,6 +158,10 @@ def make_next_layer(data_big, data_small, unresolved, size = 128):
     return multi
 
 def data_of_size(data,size):
+    """
+    Takes data of size (n_points, dim, dim) and shrinks to size (n_points, size, size)
+    takes averages to shrink
+    """
     return decrease_to_size(torch.tensor(data).unsqueeze(1), size)[:,0,:,:]
 
 
