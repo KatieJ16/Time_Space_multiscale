@@ -102,7 +102,7 @@ class ResNet(torch.nn.Module):
         # include the initial frame
         steps.insert(0, 0)
         preds.insert(0, torch.tensor(x_init).float().to(self.device))
-        
+
         # interpolations
         preds = torch.stack(preds, 2).detach().numpy()
         cs = scipy.interpolate.interp1d(steps, preds, kind='linear')
@@ -139,7 +139,7 @@ class ResNet(torch.nn.Module):
             val_loss = self.calculate_loss(dataset.val_x, dataset.val_ys, w=w)
             # ================ early stopping =================
             if best_loss <= threshold:
-                print('--> model has reached an accuracy of 1e-8! Finished training!')
+                print('--> model has reached an accuracy of ', threshold, '! Finished training!')
                 break
             # =================== backward ====================
             optimizer.zero_grad()

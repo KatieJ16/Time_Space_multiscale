@@ -153,7 +153,7 @@ def data_of_size(data,size):
     return decrease_to_size(torch.tensor(data).unsqueeze(1), size)[:,0,:,:]
 
 
-def MSE(data1, data2, size_small, tol = 1e-5, size = 128):
+def MSE(data1, data2, size_small, tol = 1e-5, size = 128, keep_small = True):
     '''
     Finds the mean square error of two tensors. will return (bol, array, bol array).
     Arrays are of size (size_small, size_small)
@@ -171,10 +171,15 @@ def MSE(data1, data2, size_small, tol = 1e-5, size = 128):
     mse = np.mean((grow(data1, size_max) - grow(data2, size_max))**2, axis = 0)
 
 
-    mse_smaller = decrease_to_size(torch.tensor(mse).unsqueeze(0).unsqueeze(0), size_small)
+    print("torch.tensor(mse).unsqueeze(0).unsqueeze(0).shape = ", torch.tensor(mse).unsqueeze(0).unsqueeze(0).shape)
+    if keep_small:
+        mse_smaller = decrease_to_size(torch.tensor(mse).unsqueeze(0).unsqueeze(0), size_small)
 
-    loss_summary = mse_smaller[0,0]
-
+        loss_summary = mse_smaller[0,0]
+    else:
+        mse = torch.tensor(mse).unsqueeze(0).unsqueeze(0)
+        loss_summary = mse[0,0]
+        
     return loss_summary.max() <= tol, loss_summary, loss_summary <= tol
 
 def make_size_4(data):

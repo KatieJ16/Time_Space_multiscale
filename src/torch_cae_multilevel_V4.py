@@ -190,10 +190,11 @@ class CAE(torch.nn.Module):
                 # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
                 if self.use_maps:
                     masked_encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
-                else:
-                    masked_encoded = encoded
                     if verbose:
                         print('apply map')
+                else:
+                    masked_encoded = encoded
+
                 if query_hidden:
                     all_hidden['L0_{}'.format(i)] = masked_encoded
                 y += self._modules['L0_deConv_{}'.format(i)](masked_encoded)
