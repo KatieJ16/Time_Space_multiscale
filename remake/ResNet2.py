@@ -5,7 +5,7 @@ from utils_time2 import DataSet
 
 
 class NNBlock(torch.nn.Module):
-    def __init__(self, arch, activation=torch.nn.ReLU()):
+    def __init__(self, arch, activation=torch.nn.ReLU(inplace=False)):
         """
         :param arch: architecture of the nn_block
         :param activation: activation function
@@ -18,6 +18,7 @@ class NNBlock(torch.nn.Module):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # network arch
+        print("arch -= ", arch)
         for i in range(self.n_layers):
             self.add_module('Linear_{}'.format(i), torch.nn.Linear(arch[i], arch[i+1]).to(self.device))
 
@@ -26,10 +27,13 @@ class NNBlock(torch.nn.Module):
         :param x: input of nn
         :return: output of nn
         """
+        print("x shape = ", x.shape)
         for i in range(self.n_layers - 1):
             x = self.activation(self._modules['Linear_{}'.format(i)](x))
+            print("x shape = ", x.shape)
         # no nonlinear activations in the last layer
         x = self._modules['Linear_{}'.format(self.n_layers - 1)](x)
+        print("x shape = ", x.shape)
         return x
 
 
@@ -45,7 +49,7 @@ class ResNet(torch.nn.Module):
 
         # check consistencies
         assert isinstance(arch, list)
-        assert arch[0] == arch[-1]
+#         assert arch[0] == arch[-1]
 
         # param
         self.n_dim = arch[0]
@@ -77,7 +81,11 @@ class ResNet(torch.nn.Module):
         :param x_init: array of shape batch_size x input_dim
         :return: next step prediction of shape batch_size x input_dim
         """
-        return x_init + self._modules['increment'](x_init)
+        ans = x_init[:,1:2] + self._modules['increment'](x_init)
+        print("xinit shape = ", x_init.shape)
+        print('ans shape = ', ans.shape)
+        print("self._modules['increment'](x_init) shape = ", self._modules['increment'](x_init).shape)
+        return ans
 
     def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
         """
@@ -110,7 +118,7 @@ class ResNet(torch.nn.Module):
 
         return y_preds
 
-    def train_net(self, dataset, max_epoch, batch_size, w=1.0, lr=1e-3, model_path=None, threshold = 1e-8):
+    def train_net(self, dataset, max_epoch, batch_size, w=1.0, lr=1e-3, model_path=None, threshold = 1e-8, print_every=1000):
         """
         :param dataset: a dataset object
         :param max_epoch: maximum number of epochs
@@ -136,6 +144,7 @@ class ResNet(torch.nn.Module):
             batch_ys = dataset.train_ys[new_idxs[:batch_size], :, :]
             # =============== calculate losses ================
             train_loss = self.calculate_loss(batch_x, batch_ys, w=w)
+            print("train_loss = ", train_loss)
             val_loss = self.calculate_loss(dataset.val_x, dataset.val_ys, w=w)
             # ================ early stopping =================
             if best_loss <= threshold:
@@ -143,10 +152,11 @@ class ResNet(torch.nn.Module):
                 break
             # =================== backward ====================
             optimizer.zero_grad()
-            train_loss.backward()
+            train_loss.backward()#retain_graph=True)
+            print("step")
             optimizer.step()
             # =================== log =========================
-            if epoch % 1000 == 0:
+            if epoch % print_every == 0:
                 print('epoch {}, training loss {}, validation loss {}'.format(epoch, train_loss.item(),
                                                                               val_loss.item()))
                 if val_loss.item() < best_loss:
@@ -167,23 +177,27 @@ class ResNet(torch.nn.Module):
         :return: overall loss
         """
         batch_size, n_steps, n_dim = ys.size()
+        print("x shape in loss funct = ", x.shape)
 #         assert n_dim == self.n_dim
+        with torch.autograd.set_detect_anomaly(True):
+            # forward (recurrence)
+            y_preds = torch.zeros(batch_size, n_steps, n_dim*2).float().to(self.device)
+            y_prev = x.clone()#[:,0]
+    #         y_prev_1 = x[:,1]
+            for t in range(n_steps-1):
+                print("y_prev = ", y_prev.shape)
+    #             ghj
+                y_next = self.forward(y_prev)
+                print("y_next shape = ", y_next.shape)
+                y_preds[:, t, :] = y_next.clone()
+            # for i in range(len(y_prev)-1):
+                y_prev = torch.cat((y_prev[:,1:2].clone(),y_next[:,0:1].clone()), axis = 1)
+                # y_prev[:,0] = y_prev[:,1].clone()
+                # y_prev[:,1] = y_next[:,0].clone()
 
-        # forward (recurrence)
-        y_preds = torch.zeros(batch_size, n_steps, n_dim*2).float().to(self.device)
-        y_prev = x#[:,0]
-#         y_prev_1 = x[:,1]
-        for t in range(n_steps-1):
-            print("y_prev_1 = x[:,1] = ", y_prev.shape)
-#             ghj
-            y_next = self.forward(y_prev)
-            y_preds[:, t, :] = y_next
-        for i in range(len(y_prev)-1):
-            y_prev[i] = y_prev[i+1]
-
-        # compute loss
-        criterion = torch.nn.MSELoss(reduction='none')
-        loss = w * criterion(y_preds, ys).mean() + (1-w) * criterion(y_preds, ys).max()
+            # compute loss
+            criterion = torch.nn.MSELoss(reduction='none')
+            loss = w * criterion(y_preds, ys).mean() + (1-w) * criterion(y_preds, ys).max()
 
         return loss
 
