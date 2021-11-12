@@ -97,23 +97,35 @@ class ResNet(torch.nn.Module):
         preds = list()
         sample_steps = range(n_steps)
 
+        # pres = x_init
         # forward predictions
+        preds = x_init#torch.zeros(batch_size, n_steps, n_dim*2).float().to(self.device)
         x_prev = x_init
+        print("x_prev shape = ", x_prev.shape)
         cur_step = self.step_size - 1
         while cur_step < n_steps + self.step_size:
             x_next = self.forward(x_prev)
+            preds = torch.cat((preds, x_next), axis = 1)
             steps.append(cur_step)
-            preds.append(x_next)
+            # preds.append(x_next)
             cur_step += self.step_size
-            x_prev = x_next
+            # x_prev = x_next
+            x_pred = torch.cat((x_prev[:,1:2].clone(),x_next[:,0:1].clone()), axis = 1)
 
         # include the initial frame
         steps.insert(0, 0)
-        preds.insert(0, torch.tensor(x_init).float().to(self.device))
+        print("y_pred shape = ", preds[:,1:].unsqueeze(1).shape)
+        # preds.insert(0, torch.tensor(x_init).float().to(self.device))
+
+        # print("preds shape = ", len(preds))
+        # print("preds[0]", len(preds[0]))
+
 
         # interpolations
-        preds = torch.stack(preds, 2).detach().numpy()
-        cs = scipy.interpolate.interp1d(steps, preds, kind='linear')
+        # preds = torch.stack(preds, 2).detach().numpy()
+        print("steps = ", steps)
+        print("len steps = ", len(steps))
+        cs = scipy.interpolate.interp1d(steps, preds[:,1:].unsqueeze(1).detach().numpy() , kind='linear')
         y_preds = torch.tensor(cs(sample_steps)).transpose(1, 2).float()
 
         return y_preds
