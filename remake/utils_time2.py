@@ -41,7 +41,7 @@ class DataSet:
         #y_starts after x ends
         y_start_idx = step_size*(self.n_input_points)# + step_size
         print("y_start_idx = ", y_start_idx)
-        y_end_idx = x_end_idx + step_size*n_forward + 1
+        y_end_idx = y_start_idx + step_size*n_forward + 1
         print("y_end_idx = ", y_end_idx)
         print(range(x_idx,x_end_idx,step_size))
 
