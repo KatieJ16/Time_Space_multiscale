@@ -171,16 +171,15 @@ class ResNet(torch.nn.Module):
 
         # forward (recurrence)
         y_preds = torch.zeros(batch_size, n_steps, n_dim*2).float().to(self.device)
-        y_prev_0 = x[:,0]
-        y_prev_1 = x[:,1]
+        y_prev = x#[:,0]
+#         y_prev_1 = x[:,1]
         for t in range(n_steps-1):
-            print("y_prev_1 = x[:,1] = ", y_prev_1.shape)
-            print("torch.cat((y_prev_0, y_prev_1), 0).shape= ", torch.cat((y_prev_0, y_prev_1), 1).shape)
+            print("y_prev_1 = x[:,1] = ", y_prev.shape)
 #             ghj
-            y_next = self.forward(torch.cat((y_prev_0, y_prev_1), 1))
+            y_next = self.forward(y_prev)
             y_preds[:, t, :] = y_next
-            y_prev_1 = y_prev_0
-            y_prev_0 = y_next[:,1]
+        for i in range(len(y_prev)-1):
+            y_prev[i] = y_prev[i+1]
 
         # compute loss
         criterion = torch.nn.MSELoss(reduction='none')

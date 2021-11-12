@@ -23,6 +23,7 @@ class DataSet:
         self.dt = dt
         self.n_dim = n_dim *2
         self.step_size = step_size
+        print("step_size = ", step_size)
         self.n_forward = n_forward
         self.n_train = n_train
         self.n_val = n_val
@@ -32,15 +33,25 @@ class DataSet:
         # device
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+        
         # data
         x_idx = 0
-        y_start_idx = x_idx + step_size
-        y_end_idx = x_idx + step_size*n_forward + 1
-        x_end_idx = x_idx + step_size*self.n_input_points + 1
+        x_end_idx = x_idx + step_size*(self.n_input_points-1)+1
+        print("x_end_idx = ", x_end_idx)
+        #y_starts after x ends
+        y_start_idx = step_size*(self.n_input_points)# + step_size
+        print("y_start_idx = ", y_start_idx)
+        y_end_idx = x_end_idx + step_size*n_forward + 1
+        print("y_end_idx = ", y_end_idx)
+        print(range(x_idx,x_end_idx,step_size))
+        
+        
 #         self.train_x = torch.tensor(train_data[:, x_idx, :]).float().to(self.device)
         self.train_x = torch.tensor(train_data[:, x_idx:x_end_idx:step_size, :]).float().to(self.device)
+        print("self.train_x shape = ", self.train_x.shape)
         
         self.train_ys = torch.tensor(train_data[:, y_start_idx:y_end_idx:step_size, :]).float().to(self.device)
+        print("train_ys shape = ", self.train_ys.shape)
         
 #         self.val_x = torch.tensor(val_data[:, x_idx, :]).float().to(self.device)
         self.val_x = torch.tensor(val_data[:, x_idx:x_end_idx:step_size, :]).float().to(self.device)
