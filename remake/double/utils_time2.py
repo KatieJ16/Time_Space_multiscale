@@ -4,7 +4,7 @@ import numpy as np
 
 
 class DataSet:
-    def __init__(self, train_data, val_data, test_data, dt, step_size, n_forward):
+    def __init__(self, train_data, val_data, test_data, dt, step_size, n_forward,n_input_points=2):
         """
         :param train_data: array of shape n_train x train_steps x input_dim
                             where train_steps = max_step x (n_steps + 1)
@@ -28,7 +28,7 @@ class DataSet:
         self.n_train = n_train
         self.n_val = n_val
         self.n_test = n_test
-        self.n_input_points = 2
+        self.n_input_points = n_input_points
 
         # device
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -62,3 +62,28 @@ class DataSet:
         # self.val_ys = torch.flatten(self.val_ys, start_dim = 1)
         self.test_x = torch.tensor(test_data[:, 0, :]).float().to(self.device)
         self.test_ys = torch.tensor(test_data[:, 1:, :]).float().to(self.device)
+
+def make_data_longer(data,n_points,n_repeats, points_needed, n_dim):
+    #need to reform training data to be 700,63,1
+    data_repeats = torch.zeros((n_points*n_repeats, points_needed, n_dim))
+    for i in range(n_repeats):
+
+        data_repeats[i*n_points:(i+1)*n_points, :,:] = data[:,i*points_needed:(i+1)*points_needed,:]
+
+    return(data_repeats)
+def make_dataset_max_repeat(train_data, val_data, test_data, dt, step_size, n_forward=5,n_input_points=2):
+    max_step = n_forward + n_input_points
+
+    points_needed = max_step *(step_size + 1)
+    n_points, n_timesteps, n_dim = train_data.shape
+    n_val_points,n_timesteps_val, _ = val_data.shape
+    n_repeats = int(n_timesteps/points_needed)
+    n_repeats_val = int(n_timesteps_val/points_needed)
+
+    #need to reform training data to be 700,63,1
+    train_data_repeats = make_data_longer(train_data,n_points,n_repeats, points_needed, n_dim)
+    val_data_repeats = make_data_longer(val_data,n_val_points,n_repeats_val, points_needed, n_dim)
+    print("train_data_repeats shape = ", train_data_repeats.shape)
+    dataset = DataSet(train_data_repeats,val_data_repeats, test_data,dt, step_size, n_forward,n_input_points)
+
+    return dataset
