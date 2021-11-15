@@ -97,61 +97,23 @@ class ResNet(torch.nn.Module):
                     if val_loss < min_loss:
                         min_loss = val_loss
                         torch.save(self, self.model_name)
-
-
-
-            # print("Epoch = ", epoch, ": Training error = ", loss.data.numpy())
         return
 
-# class ResNet(torch.nn.Module):
-#     def __init__(self, arch, dt, step_size, activation=torch.nn.ReLU()):
-#         """
-#         :param arch: a list that provides the architecture
-#         :param dt: time step unit
-#         :param step_size: forward step size
-#         :param activation: activation function in neural network
-#         """
-#         super(ResNet, self).__init__()
-
-#         # check consistencies
-#         assert isinstance(arch, list)
-# #         assert arch[0] == arch[-1]
-
-#         # param
-#         self.n_dim = arch[0]
-
-#         # data
-#         self.dt = dt
-#         self.step_size = step_size
-
-#         # device
-#         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-#         # layer
-#         self.activation = activation
-#         self.add_module('increment', NNBlock(arch, activation=activation))
-
-#     def check_data_info(self, dataset):
-#         """
-#         :param: dataset: a dataset object
-#         :return: None
-#         """
-#         print("self.n_dim= ", self.n_dim)
-#         print("dataset.n_dim = ", dataset.n_dim)
-#         assert self.n_dim == dataset.n_dim
-#         assert self.dt == dataset.dt
-#         assert self.step_size == dataset.step_size
-
-#     def forward(self, x_init):
-#         """
-#         :param x_init: array of shape batch_size x input_dim
-#         :return: next step prediction of shape batch_size x input_dim
-#         """
-#         ans = x_init[:,1:2] + self._modules['increment'](x_init)
-#         # print("xinit shape = ", x_init.shape)
-#         # print('ans shape = ', ans.shape)
-#         # print("self._modules['increment'](x_init) shape = ", self._modules['increment'](x_init).shape)
-#         return ans
+    def predict_mse(self):
+        i = 0
+        # inputs = torch.cat((self.val_inputs[i,:-3,0], self.val_inputs[i,1:-2,0], self.val_inputs[i,2:-1,0]), axis = 1)
+        # plt.plot(inputs[:,0], label = "inputs")
+        y_pred = self.forward(self.val_inputs[0:3].float())
+        y_pred = torch.cat((self.val_inputs[0:3,0:2].float(),y_pred), axis = 1)
+        pred = [y_pred.detach().numpy()[0,0]]
+        # plt.plot(t,y_pred.detach().numpy()[0,0],'.')
+        for i in range(int(498/self.step_size)):
+            y_next = self.forward(y_pred)
+            y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
+            pred.append(y_next.detach().numpy()[0,0])
+        #     plt.plot(i + 2, y_next.detach().numpy()[0,0],'.')
+            y_pred = y_next
+        return pred
 
     def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
         """
@@ -159,39 +121,29 @@ class ResNet(torch.nn.Module):
         :param n_steps: number of steps forward in terms of dt
         :return: predictions of shape n_test x n_steps x input_dim and the steps
         """
+        print("x_init shape = ", x_init.shape)
         steps = list()
         preds = list()
         sample_steps = range(n_steps)
 
-        # pres = x_init
         # forward predictions
-        preds = x_init#torch.zeros(batch_size, n_steps, n_dim*2).float().to(self.device)
         x_prev = x_init
-        print("x_prev shape = ", x_prev.shape)
         cur_step = self.step_size - 1
         while cur_step < n_steps + self.step_size:
             x_next = self.forward(x_prev)
-            preds = torch.cat((preds, x_next), axis = 1)
             steps.append(cur_step)
-            # preds.append(x_next)
+            preds.append(x_next)
             cur_step += self.step_size
-            # x_prev = x_next
-            x_pred = torch.cat((x_prev[:,1:2].clone(),x_next[:,0:1].clone()), axis = 1)
+            x_prev = x_next
 
         # include the initial frame
         steps.insert(0, 0)
-        print("y_pred shape = ", preds[:,1:].unsqueeze(1).shape)
-        # preds.insert(0, torch.tensor(x_init).float().to(self.device))
-
-        # print("preds shape = ", len(preds))
-        # print("preds[0]", len(preds[0]))
-
+        preds.insert(0, torch.tensor(x_init).float().to(self.device))
 
         # interpolations
-        # preds = torch.stack(preds, 2).detach().numpy()
-        print("steps = ", steps)
-        print("len steps = ", len(steps))
-        cs = scipy.interpolate.interp1d(steps, preds[:,1:].unsqueeze(1).detach().numpy() , kind='linear')
+        preds = torch.stack(preds, 2).detach().numpy()
+
+        cs = scipy.interpolate.interp1d(steps, preds, kind='linear')
         y_preds = torch.tensor(cs(sample_steps)).transpose(1, 2).float()
 
         return y_preds
