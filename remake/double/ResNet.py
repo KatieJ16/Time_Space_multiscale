@@ -47,7 +47,7 @@ class ResNet(torch.nn.Module):
 
         self.n_hidden_layers = n_hidden_layers
         self.n_hidden_nodes = n_hidden_nodes
-        
+
 #         print("model.dim = ", model.dim)
 
         self.hidden = nn.Linear(dim, n_hidden_nodes)   # hidden layer
@@ -67,23 +67,35 @@ class ResNet(torch.nn.Module):
         return x
 
 
-    def train_model(self,optimizer, loss_func,  inputs, outputs):
+    def train_model(self,optimizer, loss_func,  inputs, outputs, val_inputs, val_outputs, n_epochs =1000):
 
         print("inputs size = ", inputs.shape)
         print("outputs size = ", outputs.shape)
-        n_epochs = 100
+        min_loss = 1e5 #some big number
         for epoch in range(n_epochs):
             outputs = outputs.reshape(-1, 1)
 
             prediction = self.forward(inputs.float())
 
             loss = loss_func(prediction.float(), outputs.float())
+
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            
-            print("Epoch = ", epoch, ": Training error = ", loss.data.numpy())
+            #check validation and save if needed
+            if epoch % 100 == 0:
+                val_pred = self.forward(val_inputs.float())
+                val_loss = loss_func(val_pred.float(), val_outputs.float())
+                print("epoch ", epoch, ": train_error: ", loss.detach().numpy(), ": val_loss ", val_loss.detach().numpy())
+                if val_loss < min_loss:
+                    min_loss = val_loss
+                    torch.save(self, "model.pt")
+
+
+
+            # print("Epoch = ", epoch, ": Training error = ", loss.data.numpy())
         return
 
 # class ResNet(torch.nn.Module):
