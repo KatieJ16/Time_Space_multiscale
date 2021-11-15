@@ -4,7 +4,8 @@ import torch.nn.functional as F
 
 import numpy as np
 import scipy.interpolate
-from utils_time2 import DataSet
+# from utils_time2 import DataSet
+import utils
 
 
 print("using new ResNet thing")
@@ -39,7 +40,7 @@ class NNBlock(torch.nn.Module):
 class ResNet(torch.nn.Module):
     def __init__(self, train_data, val_data,
         step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
-        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000):
+        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8):
 
         super(ResNet, self).__init__()
 
@@ -49,6 +50,7 @@ class ResNet(torch.nn.Module):
         self.n_hidden_layers = n_hidden_layers
         self.n_hidden_nodes = n_hidden_nodes
         self.n_epochs = n_epochs
+        self.threshold = threshold
 
         self.train_data = train_data
         self.val_data = train_data
@@ -96,6 +98,9 @@ class ResNet(torch.nn.Module):
                     if val_loss < min_loss:
                         min_loss = val_loss
                         torch.save(self, self.model_name)
+                        if val_loss < self.threshold:
+                            print("Threshold of ", self.threshold, "met. Stop training")
+                            return
         return
 
     def predict_mse(self):
