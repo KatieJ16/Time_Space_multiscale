@@ -37,7 +37,7 @@ class NNBlock(torch.nn.Module):
         return x
 
 class ResNet(torch.nn.Module):
-    def __init__(self, inputs, outputs,val_inputs = None, val_outputs = None,
+    def __init__(self, train_data, val_data,
         step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
         model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000):
 
@@ -50,11 +50,10 @@ class ResNet(torch.nn.Module):
         self.n_hidden_nodes = n_hidden_nodes
         self.n_epochs = n_epochs
 
-        self.inputs = inputs
-        self.outputs = outputs
-        self.val_inputs = val_inputs
-        self.val_outputs = val_outputs
-
+        self.train_data = train_data
+        self.val_data = train_data
+        self.inputs, self.outputs = form_data(train_data, step_size)
+        self.val_inputs, self.val_outputs = form_data(val_data, step_size)
 
         self.hidden = nn.Linear(dim, n_hidden_nodes)   # hidden layer
         for i in range(self.n_hidden_layers):
@@ -100,20 +99,31 @@ class ResNet(torch.nn.Module):
         return
 
     def predict_mse(self):
-        i = 0
-        # inputs = torch.cat((self.val_inputs[i,:-3,0], self.val_inputs[i,1:-2,0], self.val_inputs[i,2:-1,0]), axis = 1)
-        # plt.plot(inputs[:,0], label = "inputs")
-        y_pred = self.forward(self.val_inputs[0:3].float())
-        y_pred = torch.cat((self.val_inputs[0:3,0:2].float(),y_pred), axis = 1)
-        pred = [y_pred.detach().numpy()[0,0]]
-        # plt.plot(t,y_pred.detach().numpy()[0,0],'.')
-        for i in range(int(498/self.step_size)):
-            y_next = self.forward(y_pred)
-            y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
-            pred.append(y_next.detach().numpy()[0,0])
-        #     plt.plot(i + 2, y_next.detach().numpy()[0,0],'.')
-            y_pred = y_next
-        return pred
+        mse_list = np.zeros(10)
+        pred_list_all = []
+        for num in range(10):
+            val_data = self.val_data[:,::self.step_size]
+            # print("val_data = ", val_data.shape)
+            inputs = torch.cat((val_data[num,:-3,0], val_data[num,1:-2,0], val_data[num,2:-1,0]), axis = 1)
+            # print("inputs", inputs.shape)
+            # plt.plot(inputs[:,0], label = "inputs")
+            y_pred = self.forward(inputs[0:3].float())
+            y_pred = torch.cat((inputs[0:3,0:2].float(),y_pred), axis = 1)
+            pred = [y_pred.detach().numpy()[0,0]]
+            # plt.plot(t,y_pred.detach().numpy()[0,0],'.')
+            for i in range(len(inputs[:,0])-1):
+                y_next = self.forward(y_pred)
+                y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
+                pred.append(y_next.detach().numpy()[0,0])
+            #     plt.plot(i + 2, y_next.detach().numpy()[0,0],'.')
+                y_pred = y_next
+
+            mse = np.mean((np.array(pred) - inputs[:,0].detach().numpy())**2)
+            mse_list[num] = mse
+            pred_list_all.append(pred)
+        #     print(mse)
+        # print(np.mean(mse_list))
+        return np.array(pred_list_all), np.mean(mse_list)
 
     def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
         """
@@ -230,6 +240,28 @@ class ResNet(torch.nn.Module):
             loss = w * criterion(y_preds, ys).mean() + (1-w) * criterion(y_preds, ys).max()
 
         return loss
+
+
+def form_data(data, step_size = 1):
+    """
+    Forms data to input to network.
+
+    inputs:
+        data: torch. shape, (n_points, n_timesteps, 1, 1)
+        step_size: int
+
+    outputs:
+        inputs, torch shape (max_points, 3)
+        outputs, torch shape (max_points, 1)
+    """
+    print("data shape = ", data.shape)
+    train_data = data[:,::step_size]
+    inputs = torch.cat((train_data[:,:-3,0], train_data[:,1:-2,0], train_data[:,2:-1,0]), axis = 2)
+    inputs = torch.flatten(inputs, end_dim=1)
+    outputs = train_data[:,3:,0]
+    outputs = torch.flatten(outputs, end_dim=1)
+
+    return inputs, outputs
 
 
 def multi_scale_forecast(x_init, n_steps, models):
