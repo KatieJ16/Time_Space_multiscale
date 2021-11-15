@@ -37,18 +37,24 @@ class NNBlock(torch.nn.Module):
         return x
 
 class ResNet(torch.nn.Module):
-    def __init__(self, dim = 1, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
-        PATH="model.pt", activation=nn.ReLU(), n_train=1000,n_val=100,sigma=1, n_epochs = 5000,
-        x = None, x_val = None, f = None, f_val = None, pick_data = True,
-        min_error = 0.001, ):
+    def __init__(self, inputs, outputs,val_inputs = None, val_outputs = None,
+        step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
+        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000):
 
         super(ResNet, self).__init__()
 
+        self.step_size = step_size
+        self.model_name = model_name
 
         self.n_hidden_layers = n_hidden_layers
         self.n_hidden_nodes = n_hidden_nodes
+        self.n_epochs = n_epochs
 
-#         print("model.dim = ", model.dim)
+        self.inputs = inputs
+        self.outputs = outputs
+        self.val_inputs = val_inputs
+        self.val_outputs = val_outputs
+
 
         self.hidden = nn.Linear(dim, n_hidden_nodes)   # hidden layer
         for i in range(self.n_hidden_layers):
@@ -67,15 +73,13 @@ class ResNet(torch.nn.Module):
         return x
 
 
-    def train_model(self,optimizer, loss_func,  inputs, outputs, val_inputs, val_outputs, n_epochs =1000):
+    def train_model(self,optimizer, loss_func):
 
-        print("inputs size = ", inputs.shape)
-        print("outputs size = ", outputs.shape)
         min_loss = 1e5 #some big number
-        for epoch in range(n_epochs):
-            outputs = outputs.reshape(-1, 1)
+        for epoch in range(self.n_epochs):
+            outputs = self.outputs.reshape(-1, 1)
 
-            prediction = self.forward(inputs.float())
+            prediction = self.forward(self.inputs.float())
 
             loss = loss_func(prediction.float(), outputs.float())
 
@@ -86,12 +90,13 @@ class ResNet(torch.nn.Module):
 
             #check validation and save if needed
             if epoch % 100 == 0:
-                val_pred = self.forward(val_inputs.float())
-                val_loss = loss_func(val_pred.float(), val_outputs.float())
-                print("epoch ", epoch, ": train_error: ", loss.detach().numpy(), ": val_loss ", val_loss.detach().numpy())
-                if val_loss < min_loss:
-                    min_loss = val_loss
-                    torch.save(self, "model.pt")
+                if self.val_inputs is not None:
+                    val_pred = self.forward(self.val_inputs.float())
+                    val_loss = loss_func(val_pred.float(), self.val_outputs.float())
+                    print("epoch ", epoch, ": train_error: ", loss.detach().numpy(), ": val_loss ", val_loss.detach().numpy())
+                    if val_loss < min_loss:
+                        min_loss = val_loss
+                        torch.save(self, self.model_name)
 
 
 
