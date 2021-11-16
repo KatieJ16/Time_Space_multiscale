@@ -53,7 +53,7 @@ class ResNet(torch.nn.Module):
         self.threshold = threshold
 
         self.train_data = train_data
-        self.val_data = train_data
+        self.val_data = val_data
         self.inputs, self.outputs = form_data(train_data, step_size)
         self.val_inputs, self.val_outputs = form_data(val_data, step_size)
 
@@ -103,13 +103,17 @@ class ResNet(torch.nn.Module):
                             return
         return
 
-    def predict_mse(self):
+    def predict_mse(self, data=None):
         mse_list = np.zeros(10)
         pred_list_all = []
         for num in range(10):
-            val_data = self.val_data[:,::self.step_size]
+            if data is None:
+                #use data in model if none imported
+                data = self.val_data[:,::self.step_size]
+
+            # print("data shape = ", data.shape)
             # print("val_data = ", val_data.shape)
-            inputs = torch.cat((val_data[num,:-3,0], val_data[num,1:-2,0], val_data[num,2:-1,0]), axis = 1)
+            inputs = torch.cat((data[num,:-3,0], data[num,1:-2,0], data[num,2:-1,0]), axis = 1)
             # print("inputs", inputs.shape)
             # plt.plot(inputs[:,0], label = "inputs")
             y_pred = self.forward(inputs[0:3].float())

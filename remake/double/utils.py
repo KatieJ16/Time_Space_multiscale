@@ -6,6 +6,8 @@ import os
 
 import ResNet as tnet
 
+print("reloaded")
+
 #====================================================================================
 def isPowerOfTwo(n):
     """
@@ -260,7 +262,10 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k = 
     for idx, k in enumerate(range(start_k, largest_k)):
         step_size = 2**k
         step_sizes.append(step_size)
-        model_time = train_one_timestep(step_size, train_data, val_data,model_dir=model_dir, make_new=make_new)
+        model_time = train_one_timestep(step_size, train_data, val_data, test_data=test_data, current_size=current_size,
+                       dt = dt, n_forward = n_forward, noise=noise, make_new = make_new, dont_train = dont_train,
+                       lr =lr, max_epochs = max_epochs, batch_size = batch_size,threshold = threshold,
+                       model_dir = model_dir,i=i, j = j,print_every=print_every)
         models.append(model_time)
 
 
@@ -274,7 +279,7 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k = 
     return models, step_sizes, mse_list, idx_lowest, n_forward_list
 #====================================================================================
 #====================================================================================
-def plot_lowest_error(data, model, i = 0, title=None):
+def plot_lowest_error(model, i = 0, title=None):
     """
     Plot data at model, idx
 
@@ -287,19 +292,20 @@ def plot_lowest_error(data, model, i = 0, title=None):
 
 
     """
-    data  = torch.flatten(data, 2,3)
-    _, total_steps, _ = data.shape
+    # data  = torch.flatten(data, 2,3)
+    # _, total_steps, _ = data.shape
     y_preds, mse = model.predict_mse()
     plt.plot(y_preds[i], label = "Predicted")
+    print("y_preds[i] shape = ", y_preds[i].shape)
     plt.plot(model.val_data[i,::model.step_size,0,0], label = "Truth")
     plt.ylim([-.1, 1.1])
     plt.legend()
     if title is not None:
-        plt.title(title)
+        plt.title( title + ": mse = "+str(mse))
     plt.show()
 #====================================================================================
 #====================================================================================
-def find_error_4(data, model, truth_data, tol = 1e-5):
+def find_error_4(data, model, truth_data, tol = 2e-2):
     """
     Find error over the 4 squares
 
@@ -307,7 +313,7 @@ def find_error_4(data, model, truth_data, tol = 1e-5):
         data: tensor of size (n_points, n_timesteps, dim, dim) to be predicted or size (n_points, n_timesteps)
         model: Resnet object to predict data on
         truth_data: tensor of size (n_points, n_timesteps, dim_larger, dim_larger) compared on
-        tol = 1e-5: tolerance level to mark points as resolved or not
+        tol = 2e-2: tolerance level to mark points as resolved or not
         criterion = torch.nn.MSELoss(reduction='none')
 
     outputs:
@@ -328,6 +334,19 @@ def find_error_4(data, model, truth_data, tol = 1e-5):
     truth_with_step_size = truth_data[:,::model.step_size]
 
     loss = mse(y_preds, truth_with_step_size[:,3:])
+    print("y_pred shape = ", y_preds.shape)
+    print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:,3:].shape)
+    plt.title("Fast ")
+    plt.plot(y_preds[0,:], label = "y_preds")
+    plt.plot(truth_with_step_size[0,3:,0,0], label = "truth")
+    plt.legend()
+    plt.show()
+
+    plt.title("Slow")
+    plt.plot(y_preds[0,:], label = "y_preds")
+    plt.plot(truth_with_step_size[0,3:,0,1], label = "truth")
+    plt.legend()
+    plt.show()
 
     resolved =  loss.max() <= tol
     unresolved_array = torch.tensor(loss <= tol)
