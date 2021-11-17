@@ -1,11 +1,16 @@
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 import numpy as np
 import scipy.interpolate
-from utils_time import DataSet
+# from utils_time2 import DataSet
+import utils
 
 
+print("using new ResNet thing")
 class NNBlock(torch.nn.Module):
-    def __init__(self, arch, activation=torch.nn.ReLU()):
+    def __init__(self, arch, activation=torch.nn.ReLU(inplace=False)):
         """
         :param arch: architecture of the nn_block
         :param activation: activation function
@@ -18,6 +23,7 @@ class NNBlock(torch.nn.Module):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         # network arch
+        # print("arch -= ", arch)
         for i in range(self.n_layers):
             self.add_module('Linear_{}'.format(i), torch.nn.Linear(arch[i], arch[i+1]).to(self.device))
 
@@ -28,56 +34,105 @@ class NNBlock(torch.nn.Module):
         """
         for i in range(self.n_layers - 1):
             x = self.activation(self._modules['Linear_{}'.format(i)](x))
-        # no nonlinear activations in the last layer
         x = self._modules['Linear_{}'.format(self.n_layers - 1)](x)
         return x
 
-
 class ResNet(torch.nn.Module):
-    def __init__(self, arch, dt, step_size, activation=torch.nn.ReLU()):
-        """
-        :param arch: a list that provides the architecture
-        :param dt: time step unit
-        :param step_size: forward step size
-        :param activation: activation function in neural network
-        """
+    def __init__(self, train_data, val_data,
+        step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
+        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8):
+
         super(ResNet, self).__init__()
 
-        # check consistencies
-        assert isinstance(arch, list)
-        assert arch[0] == arch[-1]
-
-        # param
-        self.n_dim = arch[0]
-
-        # data
-        self.dt = dt
         self.step_size = step_size
+        self.model_name = model_name
 
-        # device
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.n_hidden_layers = n_hidden_layers
+        self.n_hidden_nodes = n_hidden_nodes
+        self.n_epochs = n_epochs
+        self.threshold = threshold
 
-        # layer
+        self.train_data = train_data
+        self.val_data = val_data
+        self.inputs, self.outputs = form_data(train_data, step_size)
+        self.val_inputs, self.val_outputs = form_data(val_data, step_size)
+
+        self.hidden = nn.Linear(dim, n_hidden_nodes)   # hidden layer
+        for i in range(self.n_hidden_layers):
+            self.add_module('Linear_{}'.format(i), torch.nn.Linear(n_hidden_nodes, n_hidden_nodes))
+        self.predict = nn.Linear(n_hidden_nodes, out_dim)   # output layer
+
+
         self.activation = activation
-        self.add_module('increment', NNBlock(arch, activation=activation))
 
-    def check_data_info(self, dataset):
-        """
-        :param: dataset: a dataset object
-        :return: None
-        """
-        print("self.n_dim= ", self.n_dim)
-        print("dataset.n_dim = ", dataset.n_dim)
-        assert self.n_dim == dataset.n_dim
-        assert self.dt == dataset.dt
-        assert self.step_size == dataset.step_size
+    def forward(self, x):
+        #relu
+        x = self.activation(self.hidden(x))#.float()))      # activation function for hidden layer
+        for i in range(self.n_hidden_layers):
+            x = self.activation(self._modules['Linear_{}'.format(i)](x))
+        x = self.predict(x)             # linear output
+        return x
 
-    def forward(self, x_init):
-        """
-        :param x_init: array of shape batch_size x input_dim
-        :return: next step prediction of shape batch_size x input_dim
-        """
-        return x_init + self._modules['increment'](x_init)
+
+    def train_model(self,optimizer, loss_func):
+
+        min_loss = 1e5 #some big number
+        for epoch in range(self.n_epochs):
+            outputs = self.outputs.reshape(-1, 1)
+
+            prediction = self.forward(self.inputs.float())
+
+            loss = loss_func(prediction.float(), outputs.float())
+
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            #check validation and save if needed
+            if epoch % 100 == 0:
+                if self.val_inputs is not None:
+                    val_pred = self.forward(self.val_inputs.float())
+                    val_loss = loss_func(val_pred.float(), self.val_outputs.float())
+                    print("epoch ", epoch, ": train_error: ", loss.detach().numpy(), ": val_loss ", val_loss.detach().numpy())
+                    if val_loss < min_loss:
+                        min_loss = val_loss
+                        torch.save(self, self.model_name)
+                        if val_loss < self.threshold:
+                            print("Threshold of ", self.threshold, "met. Stop training")
+                            return
+        return
+
+    def predict_mse(self, data=None):
+        mse_list = np.zeros(10)
+        pred_list_all = []
+        for num in range(10):
+            if data is None:
+                #use data in model if none imported
+                data = self.val_data[:,::self.step_size]
+
+            # print("data shape = ", data.shape)
+            # print("val_data = ", val_data.shape)
+            inputs = torch.cat((data[num,:-3,0], data[num,1:-2,0], data[num,2:-1,0]), axis = 1)
+            # print("inputs", inputs.shape)
+            # plt.plot(inputs[:,0], label = "inputs")
+            y_pred = self.forward(inputs[0:3].float())
+            y_pred = torch.cat((inputs[0:3,0:2].float(),y_pred), axis = 1)
+            pred = [y_pred.detach().numpy()[0,0]]
+            # plt.plot(t,y_pred.detach().numpy()[0,0],'.')
+            for i in range(len(inputs[:,0])-1):
+                y_next = self.forward(y_pred)
+                y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
+                pred.append(y_next.detach().numpy()[0,0])
+            #     plt.plot(i + 2, y_next.detach().numpy()[0,0],'.')
+                y_pred = y_next
+
+            mse = np.mean((np.array(pred) - inputs[:,0].detach().numpy())**2)
+            mse_list[num] = mse
+            pred_list_all.append(pred)
+        #     print(mse)
+        # print(np.mean(mse_list))
+        return np.array(pred_list_all), np.mean(mse_list)
 
     def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
         """
@@ -85,6 +140,7 @@ class ResNet(torch.nn.Module):
         :param n_steps: number of steps forward in terms of dt
         :return: predictions of shape n_test x n_steps x input_dim and the steps
         """
+        print("x_init shape = ", x_init.shape)
         steps = list()
         preds = list()
         sample_steps = range(n_steps)
@@ -105,60 +161,63 @@ class ResNet(torch.nn.Module):
 
         # interpolations
         preds = torch.stack(preds, 2).detach().numpy()
+
         cs = scipy.interpolate.interp1d(steps, preds, kind='linear')
         y_preds = torch.tensor(cs(sample_steps)).transpose(1, 2).float()
 
         return y_preds
 
-    def train_net(self, dataset, max_epoch, batch_size, w=1.0, lr=1e-3, model_path=None, threshold = 1e-8):
-        """
-        :param dataset: a dataset object
-        :param max_epoch: maximum number of epochs
-        :param batch_size: batch size
-        :param w: l2 error weight
-        :param lr: learning rate
-        :param model_path: path to save the model
-        :return: None
-        """
-        # check consistency
-        self.check_data_info(dataset)
+#     def train_net(self, dataset, max_epoch, batch_size, w=1.0, lr=1e-3, model_path=None, threshold = 1e-8, print_every=1000):
+#         """
+#         :param dataset: a dataset object
+#         :param max_epoch: maximum number of epochs
+#         :param batch_size: batch size
+#         :param w: l2 error weight
+#         :param lr: learning rate
+#         :param model_path: path to save the model
+#         :return: None
+#         """
+#         # check consistency
+#         self.check_data_info(dataset)
 
-        # training
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        epoch = 0
-        best_loss = 1e+5
-        while epoch < max_epoch:
-            epoch += 1
-            # ================= prepare data ==================
-            n_samples = dataset.n_train
-            new_idxs = torch.randperm(n_samples)
-            batch_x = dataset.train_x[new_idxs[:batch_size], :]
-            batch_ys = dataset.train_ys[new_idxs[:batch_size], :, :]
-            # =============== calculate losses ================
-            train_loss = self.calculate_loss(batch_x, batch_ys, w=w)
-            val_loss = self.calculate_loss(dataset.val_x, dataset.val_ys, w=w)
-            # ================ early stopping =================
-            if best_loss <= threshold:
-                print('--> model has reached an accuracy of ', threshold, '! Finished training!')
-                break
-            # =================== backward ====================
-            optimizer.zero_grad()
-            train_loss.backward()
-            optimizer.step()
-            # =================== log =========================
-            if epoch % 1000 == 0:
-                print('epoch {}, training loss {}, validation loss {}'.format(epoch, train_loss.item(),
-                                                                              val_loss.item()))
-                if val_loss.item() < best_loss:
-                    best_loss = val_loss.item()
-                    if model_path is not None:
-                        print('(--> new model saved @ epoch {})'.format(epoch))
-                        torch.save(self, model_path)
+#         # training
+#         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+#         epoch = 0
+#         best_loss = 1e+5
+#         while epoch < max_epoch:
+#             epoch += 1
+#             # ================= prepare data ==================
+#             n_samples = dataset.n_train
+#             new_idxs = torch.randperm(n_samples)
+#             batch_x = dataset.train_x[new_idxs[:batch_size], :]
+#             batch_ys = dataset.train_ys[new_idxs[:batch_size], :, :]
+#             # =============== calculate losses ================
+#             train_loss = self.calculate_loss(batch_x, batch_ys, w=w)
+#             # print("train_loss = ", train_loss)
+#             val_loss = self.calculate_loss(dataset.val_x, dataset.val_ys, w=w)
+#             # ================ early stopping =================
+#             if best_loss <= threshold:
+#                 print('--> model has reached an accuracy of ', threshold, '! Finished training!')
+#                 break
+#             # =================== backward ====================
+#             optimizer.zero_grad()
+#             train_loss.backward()#retain_graph=True)
+#             # print("step")
+#             optimizer.step()
+#             # =================== log =========================
+#             if epoch % print_every == 0:
+#                 print('epoch {}, training loss {}, validation loss {}'.format(epoch, train_loss.item(),
+#                                                                               val_loss.item()))
+#                 if val_loss.item() < best_loss:
+#                     best_loss = val_loss.item()
+#                     if model_path is not None:
+#                         print('(--> new model saved @ epoch {})'.format(epoch))
+#                         torch.save(self, model_path)
 
-        # if to save at the end
-        if val_loss.item() < best_loss and model_path is not None:
-            print('--> new model saved @ epoch {}'.format(epoch))
-            torch.save(self, model_path)
+#         # if to save at the end
+#         if val_loss.item() < best_loss and model_path is not None:
+#             print('--> new model saved @ epoch {}'.format(epoch))
+#             torch.save(self, model_path)
 
     def calculate_loss(self, x, ys, w=1.0):
         """
@@ -167,21 +226,51 @@ class ResNet(torch.nn.Module):
         :return: overall loss
         """
         batch_size, n_steps, n_dim = ys.size()
-        assert n_dim == self.n_dim
+        # print("x shape in loss funct = ", x.shape)
+#         assert n_dim == self.n_dim
+        with torch.autograd.set_detect_anomaly(True):
+            # forward (recurrence)
+            y_preds = torch.zeros(batch_size, n_steps, n_dim*2).float().to(self.device)
+            y_prev = x.clone()#[:,0]
+    #         y_prev_1 = x[:,1]
+            for t in range(n_steps-1):
+                # print("y_prev = ", y_prev.shape)
+    #             ghj
+                y_next = self.forward(y_prev)
+                # print("y_next shape = ", y_next.shape)
+                y_preds[:, t, :] = y_next.clone()
+            # for i in range(len(y_prev)-1):
+                y_prev = torch.cat((y_prev[:,1:2].clone(),y_next[:,0:1].clone()), axis = 1)
+                # y_prev[:,0] = y_prev[:,1].clone()
+                # y_prev[:,1] = y_next[:,0].clone()
 
-        # forward (recurrence)
-        y_preds = torch.zeros(batch_size, n_steps, n_dim).float().to(self.device)
-        y_prev = x
-        for t in range(n_steps):
-            y_next = self.forward(y_prev)
-            y_preds[:, t, :] = y_next
-            y_prev = y_next
-
-        # compute loss
-        criterion = torch.nn.MSELoss(reduction='none')
-        loss = w * criterion(y_preds, ys).mean() + (1-w) * criterion(y_preds, ys).max()
+            # compute loss
+            criterion = torch.nn.MSELoss(reduction='none')
+            loss = w * criterion(y_preds, ys).mean() + (1-w) * criterion(y_preds, ys).max()
 
         return loss
+
+
+def form_data(data, step_size = 1):
+    """
+    Forms data to input to network.
+
+    inputs:
+        data: torch. shape, (n_points, n_timesteps, 1, 1)
+        step_size: int
+
+    outputs:
+        inputs, torch shape (max_points, 3)
+        outputs, torch shape (max_points, 1)
+    """
+    print("data shape = ", data.shape)
+    train_data = data[:,::step_size]
+    inputs = torch.cat((train_data[:,:-3,0], train_data[:,1:-2,0], train_data[:,2:-1,0]), axis = 2)
+    inputs = torch.flatten(inputs, end_dim=1)
+    outputs = train_data[:,3:,0]
+    outputs = torch.flatten(outputs, end_dim=1)
+
+    return inputs, outputs
 
 
 def multi_scale_forecast(x_init, n_steps, models):
