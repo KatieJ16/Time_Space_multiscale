@@ -305,7 +305,7 @@ def plot_lowest_error(model, i = 0, title=None):
     plt.show()
 #====================================================================================
 #====================================================================================
-def find_error_4(data, model, truth_data, tol = 2e-2):
+def find_error_4(data, model, truth_data, tol = 2e-2, plot = False):
     """
     Find error over the 4 squares
 
@@ -333,20 +333,22 @@ def find_error_4(data, model, truth_data, tol = 2e-2):
 
     truth_with_step_size = truth_data[:,::model.step_size]
 
-    loss = mse(y_preds, truth_with_step_size[:,3:])
-    print("y_pred shape = ", y_preds.shape)
-    print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:,3:].shape)
-    plt.title("Fast ")
-    plt.plot(y_preds[0,:], label = "y_preds")
-    plt.plot(truth_with_step_size[0,3:,0,0], label = "truth")
-    plt.legend()
-    plt.show()
+    loss = mse(y_preds, truth_with_step_size[:,:-3])
+    if plot:
+        print("y_pred shape = ", y_preds.shape)
+        print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:,3:].shape)
+        plt.title("Fast ")
+        plt.plot(y_preds[0,:], label = "y_preds")
+        plt.plot(truth_with_step_size[0,:,0,0], label = "truth")
+        # plt.xlim([-2,30])
+        plt.legend()
+        plt.show()
 
-    plt.title("Slow")
-    plt.plot(y_preds[0,:], label = "y_preds")
-    plt.plot(truth_with_step_size[0,3:,0,1], label = "truth")
-    plt.legend()
-    plt.show()
+        plt.title("Slow")
+        plt.plot(y_preds[0,:], label = "y_preds")
+        plt.plot(truth_with_step_size[0,3:,0,1], label = "truth")
+        plt.legend()
+        plt.show()
 
     resolved =  loss.max() <= tol
     unresolved_array = torch.tensor(loss <= tol)
