@@ -1,8 +1,9 @@
+import math
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import math
-import os
+
 
 import ResNet as tnet
 
@@ -188,8 +189,8 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
         if dont_train: #just load model, no training
             return model_time
     except:
-        print('create model {} ...'.format(model_name))
-        model_time = tnet.ResNet(train_data,val_data,step_size, model_name=model_name)
+        print('create model {} ...'.format(model_path_this))
+        model_time = tnet.ResNet(train_data,val_data,step_size, model_name=model_path_this)
 
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model_time.parameters())
@@ -346,7 +347,7 @@ def find_error_4(data, model, truth_data, tol = 2e-2, plot = False):
 
         plt.title("Slow")
         plt.plot(y_preds[0,:], label = "y_preds")
-        plt.plot(truth_with_step_size[0,3:,0,1], label = "truth")
+        plt.plot(truth_with_step_size[0,:,0,1], label = "truth")
         plt.legend()
         plt.show()
 
@@ -411,4 +412,35 @@ def grow(data, dim_full=128):
             repeated = np.repeat(np.repeat(data[:,:,i,j].reshape(n_points,n_timesteps,1,1), divide, axis = 2), divide, axis = 3)
             data_full[:,:,i*divide:(i+1)*divide, j*divide:(j+1)*divide] = repeated
     return data_full
+#====================================================================================
+def find_error_1(data, model, tol = 2e-2, plot = False):
+    """
+    Find error over the 1 square
+
+    inputs:
+        data: tensor of size (n_points, n_timesteps, dim, dim) to be predicted
+        model: Resnet object to predict data on
+        tol = 1e-5: tolerance level to mark points as resolved or not
+        criterion = torch.nn.MSELoss(reduction='none')
+
+    outputs:
+        loss: float of mse
+        resolved: boolean whether resolved or not
+    """
+    #reshape if needed
+    if len(data.shape)==2:
+        data = data[:,::model.step_size].unsqueeze(2).unsqueeze(3)
+    y_preds, mse = model.predict_mse(data)
+
+    if plot:
+        truth = model.val_data[:,::model.step_size,i,j]#[:,3:]
+        plt.plot(truth[0], label = "Truth")
+
+        print('mse = ', mse)
+        plt.title("find_error_1")
+        plt.plot(y_preds[0], label = "Predicted")
+        plt.show()
+
+
+    return mse, mse <= tol
 #====================================================================================

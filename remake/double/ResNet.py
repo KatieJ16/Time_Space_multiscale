@@ -111,27 +111,20 @@ class ResNet(torch.nn.Module):
                 #use data in model if none imported
                 data = self.val_data[:,::self.step_size]
 
-            # print("data shape = ", data.shape)
-            # print("val_data = ", val_data.shape)
             inputs = torch.cat((data[num,:-3,0], data[num,1:-2,0], data[num,2:-1,0]), axis = 1)
-            # print("inputs", inputs.shape)
-            # plt.plot(inputs[:,0], label = "inputs")
+
             y_pred = self.forward(inputs[0:3].float())
             y_pred = torch.cat((inputs[0:3,0:2].float(),y_pred), axis = 1)
             pred = [y_pred.detach().numpy()[0,0]]
-            # plt.plot(t,y_pred.detach().numpy()[0,0],'.')
             for i in range(len(inputs[:,0])-1):
                 y_next = self.forward(y_pred)
                 y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
                 pred.append(y_next.detach().numpy()[0,0])
-            #     plt.plot(i + 2, y_next.detach().numpy()[0,0],'.')
                 y_pred = y_next
 
             mse = np.mean((np.array(pred) - inputs[:,0].detach().numpy())**2)
             mse_list[num] = mse
             pred_list_all.append(pred)
-        #     print(mse)
-        # print(np.mean(mse_list))
         return np.array(pred_list_all), np.mean(mse_list)
 
     def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
