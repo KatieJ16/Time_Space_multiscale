@@ -323,6 +323,8 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
     if(len(data.shape)) == 2:
         data = data.unsqueeze(2).unsqueeze(3)
     assert len(data.shape) == 4
+    print("truth_data shape =", truth_data.shape)
+    print("data shape = ", data.shape)
     n_points, n_timesteps, dim, _ = data.shape
     data = torch.flatten(data, 2, 3)
     y_preds, mse_avg = model.predict_mse()
@@ -332,21 +334,43 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
 
     truth_with_step_size = truth_data[:, ::model.step_size]
 
+    print("truth_data shape = ", truth_data.shape)
+    print("y_preds shape =", y_preds.shape)
+    print("truth_with_step_size shape =", truth_with_step_size.shape)
+    print("truth_with_step_size[:, :-3] shape =", truth_with_step_size[:, :-3].shape)
     loss = mse(y_preds, truth_with_step_size[:, :-3])
     if plot:
         print("y_pred shape = ", y_preds.shape)
         print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:, 3:].shape)
-        plt.title("Fast ")
+        plt.title("(0,0) ")
         plt.plot(y_preds[0, :], label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 0], label="truth")
         # plt.xlim([-2,30])
+        plt.ylim([-.1, 1.1])
         plt.legend()
         plt.show()
 
-        plt.title("Slow")
+        plt.title("(1,0) ")
+        plt.plot(y_preds[0, :], label="y_preds")
+        plt.plot(truth_with_step_size[0, :, 1, 0], label="truth")
+        # plt.xlim([-2,30])
+        plt.ylim([-.1, 1.1])
+        plt.legend()
+        plt.show()
+
+        plt.title("(0,1) ")
         plt.plot(y_preds[0, :], label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 1], label="truth")
+        # plt.xlim([-2,30])
+        plt.ylim([-.1, 1.1])
         plt.legend()
+        plt.show()
+
+        plt.title("(1,1)")
+        plt.plot(y_preds[0, :], label="y_preds")
+        plt.plot(truth_with_step_size[0, :, 1, 1], label="truth")
+        plt.legend()
+        plt.ylim([-.1, 1.1])
         plt.show()
 
     resolved = loss.max() <= tol
@@ -368,6 +392,8 @@ def mse(data1, data2):
         mse: array of size (min_dim, min_dim) with mse
 
     """
+    print("data1 shape =", data1.shape)
+    print("data2 shape =", data2.shape)
     #made 4 dims
     if len(data1.shape) != 4:
         data1 = torch.tensor(data1).unsqueeze(2).unsqueeze(3)
@@ -381,7 +407,8 @@ def mse(data1, data2):
     #find bigger dim
     size1 = data1.shape[-1]
     size2 = data2.shape[-1]
-    print(size1, size2)
+    print("sizes = ", size1, size2)
+
     size_max = max(size1, size2)
 
     #grow to save sizes and find mse
@@ -400,6 +427,8 @@ def grow(data, dim_full=128):
         data_full: tensor size (n_points, n_timesteps, size_full, size_full)
     '''
     n_points, n_timesteps, dim_small, _ = data.shape
+    print("dim_full = ", dim_full)
+    print("dim_small = ", dim_small)
     assert dim_full % dim_small == 0 #need small to be multiple of full
 
     divide = dim_full // dim_small
@@ -412,7 +441,7 @@ def grow(data, dim_full=128):
             data_full[:, :, i*divide:(i+1)*divide, j*divide:(j+1)*divide] = repeated
     return data_full
 #====================================================================================
-def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0):
+def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title = "find_error_1"):
     """
     Find error over the 1 square
 
@@ -437,10 +466,27 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0):
         plt.plot(truth[0], label="Truth")
 
         print('mse = ', mse)
-        plt.title("find_error_1")
+        plt.title(title + ", mse: "+str(mse))
         plt.plot(y_preds[0], label="Predicted")
         plt.show()
 
 
     return mse, mse <= tol
+#====================================================================================
+def load_and_make_dict(data_dir, have_test = False):
+    """load data and make dictionary with all levels"""
+
+    #load data
+    train_data = torch.tensor(np.load(os.path.join(data_dir, 'train_data.npy')))
+    val_data = torch.tensor(np.load(os.path.join(data_dir, 'val_data.npy')))
+
+    train_dict = make_dict_all_sizes(train_data)
+    val_dict = make_dict_all_sizes(val_data)
+
+    #if also doing test data
+    if have_test:
+        test_data = torch.tensor(np.load(os.path.join(data_dir, 'test_data.npy')))
+        test_dict = make_dict_all_sizes(test_data)
+        return train_dict, val_dict, test_dict
+    return train_dict, val_dict
 #====================================================================================

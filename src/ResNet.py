@@ -74,10 +74,17 @@ class ResNet(torch.nn.Module):
         return x
 
 
-    def train_model(self,optimizer, loss_func):
+    def train_model(self,optimizer, loss_func, n_no_improve = 1000):
 
-        min_loss = 1e5 #some big number
-        for epoch in range(self.n_epochs):
+        #train until val loss min (doesn't improve in n_no_improve)
+        min_val_loss = torch.tensor(1e5) #some big number
+        going = True
+        epoch = 0
+        no_improve = 0
+        print_every = 100
+        while going:
+        # for epoch in range(self.n_epochs):
+            epoch += 1
             outputs = self.outputs.reshape(-1, 1)
 
             prediction = self.forward(self.inputs.float())
@@ -90,16 +97,23 @@ class ResNet(torch.nn.Module):
             optimizer.step()
 
             #check validation and save if needed
-            if epoch % 100 == 0:
+            if epoch % print_every == 0:
                 if self.val_inputs is not None:
                     val_pred = self.forward(self.val_inputs.float())
                     val_loss = loss_func(val_pred.float(), self.val_outputs.float())
-                    print("epoch ", epoch, ": train_error: ", loss.detach().numpy(), ": val_loss ", val_loss.detach().numpy())
-                    if val_loss < min_loss:
-                        min_loss = val_loss
+                    print("epoch ", epoch, ": train_error: ", loss.detach().numpy(), ": val_loss ", val_loss.detach().numpy(), ": min_val_loss ", min_val_loss.detach().numpy())
+                    if val_loss < min_val_loss:
+                        no_improve = 0
+                        min_val_loss = val_loss
                         torch.save(self, self.model_name)
+                        print("Model improved. Saved at epoch = ", epoch)
                         if val_loss < self.threshold:
                             print("Threshold of ", self.threshold, "met. Stop training")
+                            return
+                    else:
+
+                        no_improve += print_every
+                        if no_improve >= n_no_improve:
                             return
         return
 
