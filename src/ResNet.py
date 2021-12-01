@@ -1,11 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import numpy as np
 import scipy.interpolate
-# from utils_time2 import DataSet
-import utils
+
 
 
 print("using new ResNet thing")
@@ -39,17 +37,20 @@ class NNBlock(torch.nn.Module):
 
 class ResNet(torch.nn.Module):
     def __init__(self, train_data, val_data,
-        step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
-        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8):
+                 step_size=1, dim=3, out_dim=1, n_hidden_nodes=20,
+                 n_hidden_layers=5, model_name="model.pt",
+                 activation=nn.ReLU(), max_epochs=1000000, threshold=1e-8,
+                 print_every = 100):
 
         super(ResNet, self).__init__()
 
         self.step_size = step_size
         self.model_name = model_name
+        self.print_every = print_every
 
         self.n_hidden_layers = n_hidden_layers
         self.n_hidden_nodes = n_hidden_nodes
-        self.n_epochs = n_epochs
+        self.max_epochs = max_epochs
         self.threshold = threshold
 
         self.train_data = train_data
@@ -74,17 +75,15 @@ class ResNet(torch.nn.Module):
         return x
 
 
-    def train_model(self,optimizer, loss_func, n_no_improve = 1000):
+    def train_model(self, optimizer, loss_func, n_no_improve=1000):
 
         #train until val loss min (doesn't improve in n_no_improve)
         min_val_loss = torch.tensor(1e5) #some big number
         going = True
-        epoch = 0
         no_improve = 0
-        print_every = 100
-        while going:
+
+        for epoch in self.max_epochs:
         # for epoch in range(self.n_epochs):
-            epoch += 1
             outputs = self.outputs.reshape(-1, 1)
 
             prediction = self.forward(self.inputs.float())
@@ -97,7 +96,7 @@ class ResNet(torch.nn.Module):
             optimizer.step()
 
             #check validation and save if needed
-            if epoch % print_every == 0:
+            if epoch % self.print_every == 0:
                 if self.val_inputs is not None:
                     val_pred = self.forward(self.val_inputs.float())
                     val_loss = loss_func(val_pred.float(), self.val_outputs.float())
@@ -123,25 +122,26 @@ class ResNet(torch.nn.Module):
         for num in range(10):
             if data is None:
                 #use data in model if none imported
-                data = self.val_data[:,::self.step_size]
+                data = self.val_data[:, ::self.step_size]
 
-            inputs = torch.cat((data[num,:-3,0], data[num,1:-2,0], data[num,2:-1,0]), axis = 1)
+            inputs = torch.cat((data[num, :-3, 0], data[num, 1:-2, 0],
+                                data[num, 2:-1, 0]), axis=1)
 
             y_pred = self.forward(inputs[0:3].float())
-            y_pred = torch.cat((inputs[0:3,0:2].float(),y_pred), axis = 1)
-            pred = [y_pred.detach().numpy()[0,0]]
-            for i in range(len(inputs[:,0])-1):
+            y_pred = torch.cat((inputs[0:3, 0:2].float(), y_pred), axis=1)
+            pred = [y_pred.detach().numpy()[0, 0]]
+            for i in range(len(inputs[:, 0])-1):
                 y_next = self.forward(y_pred)
-                y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
-                pred.append(y_next.detach().numpy()[0,0])
+                y_next = torch.cat((y_pred[:, 1:3], y_next), axis=1)
+                pred.append(y_next.detach().numpy()[0, 0])
                 y_pred = y_next
 
-            mse = np.mean((np.array(pred) - inputs[:,0].detach().numpy())**2)
+            mse = np.mean((np.array(pred) - inputs[:, 0].detach().numpy())**2)
             mse_list[num] = mse
             pred_list_all.append(pred)
         return np.array(pred_list_all), np.mean(mse_list)
 
-    def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
+    def uni_scale_forecast(self, x_init, n_steps, interpolate=True):
         """
         :param x_init: array of shape n_test x input_dim
         :param n_steps: number of steps forward in terms of dt
@@ -247,7 +247,7 @@ class ResNet(torch.nn.Module):
                 # print("y_next shape = ", y_next.shape)
                 y_preds[:, t, :] = y_next.clone()
             # for i in range(len(y_prev)-1):
-                y_prev = torch.cat((y_prev[:,1:2].clone(),y_next[:,0:1].clone()), axis = 1)
+                y_prev = torch.cat((y_prev[:, 1:2].clone(), y_next[:, 0:1].clone()), axis=1)
                 # y_prev[:,0] = y_prev[:,1].clone()
                 # y_prev[:,1] = y_next[:,0].clone()
 
@@ -258,7 +258,7 @@ class ResNet(torch.nn.Module):
         return loss
 
 
-def form_data(data, step_size = 1):
+def form_data(data, step_size=1):
     """
     Forms data to input to network.
 
@@ -271,10 +271,11 @@ def form_data(data, step_size = 1):
         outputs, torch shape (max_points, 1)
     """
     print("data shape = ", data.shape)
-    train_data = data[:,::step_size]
-    inputs = torch.cat((train_data[:,:-3,0], train_data[:,1:-2,0], train_data[:,2:-1,0]), axis = 2)
+    train_data = data[:, ::step_size]
+    inputs = torch.cat((train_data[:, :-3, 0], train_data[:, 1:-2, 0],
+                        train_data[:, 2:-1, 0]), axis=2)
     inputs = torch.flatten(inputs, end_dim=1)
-    outputs = train_data[:,3:,0]
+    outputs = train_data[:, 3:, 0]
     outputs = torch.flatten(outputs, end_dim=1)
 
     return inputs, outputs
