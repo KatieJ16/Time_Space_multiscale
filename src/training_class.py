@@ -15,7 +15,7 @@ class training_class():
         defining a class that will do all the training and stuff.
     """
 
-    def __init__(self, data_dir, model_dir, result_dir):
+    def __init__(self, data_dir, model_dir, result_dir,tol):
 
         self.data_dir = data_dir
         self.model_dir = model_dir
@@ -27,7 +27,7 @@ class training_class():
         self.model_keep = list()
         self.model_used_dict = {}
 
-        self.tol = 0.0003
+        self.tol = tol
 # ==================================================================================
 def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True):
     """
@@ -90,7 +90,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         
     return self,resolved
 
-def train_next_step(self, current_size, verbose=True):
+def train_next_step(self, current_size, verbose=True,make_new=False, dont_train=True):
     """
         trains and does everything for 2nd iteration
     """
@@ -110,10 +110,11 @@ def train_next_step(self, current_size, verbose=True):
                 continue
             else:
             #see if the error is low enough on already made model
-                for m, model in enumerate(model_keep):
-                    loss, resolved = utils.find_error_1(data_this, model,tol=0.0003)
+                for m, model in enumerate(self.model_keep):
+                    loss, resolved = utils.find_error_1(data_this, model,tol=self.tol)
                     step_size = model.step_size
-                    print("model ", m, " has loss = ", loss)
+                    if verbose:
+                        print("model ", m, " has loss = ", loss)
                     if resolved:
                         model_idx_list[i,j] = m
                         print("Resolved with loss = ", loss, ": model #", m)
@@ -121,14 +122,53 @@ def train_next_step(self, current_size, verbose=True):
                     else:
                         pass
                 if not resolved:
+                    if verbose:
                     print("not resolved, fitting new model")
                     k = int(np.log2(step_size))
                     #if no model good, train new model
-                    models, step_sizes, mse_list, idx_lowest, n_forward_list = utils.find_best_timestep(train_dict[str(current_size)][:,:,i,j], 
-                                                                  val_dict[str(current_size)][:,:,i,j], 
-                                                                  val_dict[str(current_size)][:,:,i,j], current_size,model_dir=model_dir,#make_new = True,
-                                                                  i=i, j=j, start_k = 2, largest_k =3)#, dont_train=False)
+                    models, step_sizes, mse_list, idx_lowest, n_forward_list = utils.find_best_timestep(self.train_dict[str(current_size)][:,:,i,j], 
+                                                                  self.val_dict[str(current_size)][:,:,i,j], 
+                                                                  self.val_dict[str(current_size)][:,:,i,j], 
+                                                                  current_size, model_dir=self.model_dir, make_new = make_new,
+                                                                  i=i, j=j, start_k = 2, largest_k =3, dont_train=dont_train)
 
-                    model_keep.append(models[idx_lowest])
-                    model_idx_list[i,j] = len(model_keep)-1
-    model_used_dict[str(current_size)] = model_idx_list
+                    self.model_keep.append(models[idx_lowest])
+                    model_idx_list[i,j] = len(self.model_keep)-1
+    self.model_used_dict[str(current_size)] = model_idx_list
+    if verbose:
+        print("self.model_used_dict[str(current_size)] = ", self.model_used_dict[str(current_size)])
+        
+    #find errors
+    #once we have all 4 figured out, need to check the errors on the 2x2 of the 2x2s (the 4x4)
+    unresolved_list_big = np.ones((current_size*2,current_size*2))*(-1)
+    loss_big = np.ones((current_size*2,current_size*2))*(-1)
+    all_resolved = True
+    width = 2
+    for i in range(current_size):
+        for j in range(current_size):
+            print("i = ", i,": j = ", j)
+#             print(self.model_used_dict[str(current_size)][i][j])
+            model = self.model_keep[int(self.model_used_dict[str(current_size)][i][j])]
+            data_next = self.val_dict[str(current_size*2)][:,:, i*width:(i+1)*width, j*width:(j+1)*width]
+            resolved, loss, unresolved_list = utils.find_error_4(self.val_dict[str(current_size)][:,:,i,j], model, data_next, plot=verbose, tol=self.tol)
+            unresolved_list_big[i*width:(i+1)*width, j*width:(j+1)*width] = unresolved_list
+            loss_big[i*width:(i+1)*width, j*width:(j+1)*width] = loss
+            if not resolved:
+                all_resolved = False
+            if verbose:
+                print(loss)
+                print(unresolved_list)
+    if verbose:
+        print("all_resolved = ", all_resolved)
+        print("unresolved_list_big = ", unresolved_list_big)
+        print("loss_big = ", loss_big)
+        plt.figure()
+        plt.imshow(np.log10(loss_big),cmap='Greys')
+        plt.colorbar()
+        plt.title("log(loss)")
+        plt.show()
+    self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list_big)
+    if verbose:
+        print("unresolved_dict = ", self.unresolved_dict)
+    
+    return self, all_resolved
