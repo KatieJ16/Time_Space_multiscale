@@ -18,7 +18,7 @@ def isPowerOfTwo(n):
 
     output: boolean
     """
-    return np.ceil(np.log2(n)) == np.floor(np.log2(n))
+    return (np.ceil(np.log2(n)) == np.floor(np.log2(n)))
 #====================================================================================
 # def shrink(data, low_dim):
 #     '''
@@ -144,12 +144,10 @@ def form_data(data, step_size=1):
 
     return inputs, outputs
 #====================================================================================
-def train_one_timestep(step_size, train_data, val_data=None, test_data=None,
-                       current_size=1, dt=1, n_forward=5, noise=0,
-                       make_new=False, dont_train=True, lr=1e-3,
-                       max_epochs=1000000, batch_size=50, threshold=1e-4,
-                       model_dir='./models/toy2a', i=None, j=None,
-                       print_every=1000, criterion=torch.nn.MSELoss()):
+def train_one_timestep(step_size, train_data, val_data=None, test_data=None, current_size=1,
+                       dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
+                       lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-4,
+                       model_dir='./models/toy2a', i=None, j=None, print_every=1000):
 
     """
     fits or loads model at 1 timestep
@@ -192,12 +190,10 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None,
             return model_time
     except:
         print('create model {} ...'.format(model_path_this))
-        model_time = tnet.ResNet(train_data, val_data, step_size,
-                                 model_name=model_path_this,
-                                 print_every=print_every,
-                                 threshold=threshold, max_epochs=max_epochs)
+        model_time = tnet.ResNet(train_data, val_data, step_size, model_name=model_path_this)
 
-    optimizer = torch.optim.Adam(model_time.parameters(), lr=lr)
+    criterion = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model_time.parameters())
 
     model_time.train_model(optimizer, criterion)
 
@@ -249,9 +245,9 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
         train_data = train_data.unsqueeze(2).unsqueeze(3)
         val_data = val_data.unsqueeze(2).unsqueeze(3)
         test_data = test_data.unsqueeze(2).unsqueeze(3)
-    assert len(train_data.shape) == 4
-    assert len(val_data.shape) == 4
-    assert len(test_data.shape) == 4
+    assert(len(train_data.shape) == 4)
+    assert(len(val_data.shape) == 4)
+    assert(len(test_data.shape) == 4)
 
     models = list()
     step_sizes = list()
@@ -266,15 +262,10 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
     for idx, k in enumerate(range(start_k, largest_k)):
         step_size = 2**k
         step_sizes.append(step_size)
-        model_time = train_one_timestep(step_size, train_data, val_data,
-                                        test_data=test_data,
-                                        current_size=current_size, dt=dt,
-                                        n_forward=n_forward, noise=noise,
-                                        make_new=make_new, dont_train=dont_train,
-                                        lr=lr, max_epochs=max_epochs,
-                                        batch_size=batch_size, threshold=threshold,
-                                        model_dir=model_dir, i=i, j=j,
-                                        print_every=print_every, criterion=criterion)
+        model_time = train_one_timestep(step_size, train_data, val_data, test_data=test_data, current_size=current_size,
+                       dt=dt, n_forward=n_forward, noise=noise, make_new=make_new, dont_train=dont_train,
+                       lr =lr, max_epochs=max_epochs, batch_size=batch_size, threshold=threshold,
+                       model_dir=model_dir, i=i, j=j, print_every=print_every)
         models.append(model_time)
 
 
@@ -450,7 +441,7 @@ def grow(data, dim_full=128):
             data_full[:, :, i*divide:(i+1)*divide, j*divide:(j+1)*divide] = repeated
     return data_full
 #====================================================================================
-def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_1"):
+def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title = "find_error_1"):
     """
     Find error over the 1 square
 
@@ -482,7 +473,7 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
 
     return mse, mse <= tol
 #====================================================================================
-def load_and_make_dict(data_dir, have_test=False):
+def load_and_make_dict(data_dir, have_test = False):
     """load data and make dictionary with all levels"""
 
     #load data
