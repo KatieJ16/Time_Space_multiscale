@@ -118,28 +118,31 @@ class ResNet(torch.nn.Module):
         return
 
     def predict_mse(self, data=None):
-        mse_list = np.zeros(10)
-        pred_list_all = []
-        for num in range(10):
-            if data is None:
-                #use data in model if none imported
-                data = self.val_data[:,::self.step_size]
+        n_inputs = 3
 
-            inputs = torch.cat((data[num,:-3,0], data[num,1:-2,0], data[num,2:-1,0]), axis = 1)
+        if data is None:
+            #use data in model if none imported
+            data = self.val_data[:, ::self.step_size]
 
-            y_pred = self.forward(inputs[0:3].float())
-            y_pred = torch.cat((inputs[0:3,0:2].float(),y_pred), axis = 1)
-            pred = [y_pred.detach().numpy()[0,0]]
-            for i in range(len(inputs[:,0])-1):
+        n_points, n_timesteps, _, _ = data.shape
+        mse_list = np.zeros(n_points)
+        pred_list_all = torch.ones(data.shape[:(n_inputs-1)])*(-1)
+        for num in range(n_points):
+            y_pred = data[num, :n_inputs, 0, 0].float().T
+            pred = y_pred
+
+            for i in range(n_timesteps-n_inputs):
                 y_next = self.forward(y_pred)
-                y_next = torch.cat((y_pred[:, 1:3],y_next), axis = 1)
-                pred.append(y_next.detach().numpy()[0,0])
+                pred = torch.cat((pred,y_next))
+                y_next = torch.cat((y_pred[1:], y_next))
+
+
                 y_pred = y_next
 
-            mse = np.mean((np.array(pred) - inputs[:,0].detach().numpy())**2)
+            mse = np.mean((pred.detach().numpy() - data[num].detach().numpy())**2)
             mse_list[num] = mse
-            pred_list_all.append(pred)
-        return np.array(pred_list_all), np.mean(mse_list)
+            pred_list_all[num] = pred
+        return pred_list_all, np.mean(mse_list)
 
     def uni_scale_forecast(self, x_init, n_steps, interpolate = True):
         """

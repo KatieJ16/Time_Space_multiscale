@@ -295,7 +295,7 @@ def plot_lowest_error(model, i=0, title=None):
     # data  = torch.flatten(data, 2,3)
     # _, total_steps, _ = data.shape
     y_preds, mse = model.predict_mse()
-    plt.plot(y_preds[i], label="Predicted")
+    plt.plot(y_preds[i].detach().numpy(), label="Predicted")
     print("y_preds[i] shape = ", y_preds[i].shape)
     plt.plot(model.val_data[i, ::model.step_size, 0, 0], label="Truth")
     plt.ylim([-.1, 1.1])
@@ -338,12 +338,12 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
     print("y_preds shape =", y_preds.shape)
     print("truth_with_step_size shape =", truth_with_step_size.shape)
     print("truth_with_step_size[:, :-3] shape =", truth_with_step_size[:, :-3].shape)
-    loss = mse(y_preds, truth_with_step_size[:, :-3])
+    loss = mse(y_preds, truth_with_step_size)
     if plot:
         print("y_pred shape = ", y_preds.shape)
         print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:, 3:].shape)
         plt.title("(0,0) ")
-        plt.plot(y_preds[0, :], label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 0], label="truth")
         # plt.xlim([-2,30])
         plt.ylim([-.1, 1.1])
@@ -351,7 +351,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.show()
 
         plt.title("(1,0) ")
-        plt.plot(y_preds[0, :], label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 0], label="truth")
         # plt.xlim([-2,30])
         plt.ylim([-.1, 1.1])
@@ -359,7 +359,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.show()
 
         plt.title("(0,1) ")
-        plt.plot(y_preds[0, :], label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 1], label="truth")
         # plt.xlim([-2,30])
         plt.ylim([-.1, 1.1])
@@ -367,7 +367,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.show()
 
         plt.title("(1,1)")
-        plt.plot(y_preds[0, :], label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 1], label="truth")
         plt.legend()
         plt.ylim([-.1, 1.1])
