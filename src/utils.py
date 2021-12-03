@@ -20,35 +20,8 @@ def isPowerOfTwo(n):
     """
     return (np.ceil(np.log2(n)) == np.floor(np.log2(n)))
 #====================================================================================
-# def shrink(data, low_dim):
-#     '''
-#     Shrinks data to certain size; either averages or takes endpoints
-#
-#     inputs:
-#         data: array of size (n_points, n_timesteps, dim, dim) that will shrink
-#         low_dim: int, size to shrink to, low_dim must be less than or equal to dim
-#
-#     output:
-#         data: array of size (n_points, n_timesteps, low_dim, low_dim)
-#     '''
-#
-#     #check inputs
-#     assert len(data.shape) == 4
-#     n_points, n_timesteps, dim, _ = data.shape
-#     assert dim >= low_dim
-#     assert isPowerOfTwo(low_dim)
-#
-#     if dim == low_dim: #same size, no change
-#         return data
-#
-#     while(dim > low_dim):
-#         #shrink by 1 level until same size
-#         data = apply_local_op(data.float(), 'cpu', ave=average)
-#         current_size = data.shape[-1]
-#
-#     return data
-#====================================================================================
-def ave_one_level(data):
+
+def ave_one_level(data,device = 'cpu'):
     '''
     takes averages to shrink data 1 level
 
@@ -58,7 +31,7 @@ def ave_one_level(data):
     output:
         processed data: tensor of size (n_points, n_timesteps, dim/2, dim/2)
     '''
-    device = 'cpu'
+    
     if not torch.is_tensor(data): #needs to be a tensor
         data = torch.tensor(data)
 
@@ -68,7 +41,7 @@ def ave_one_level(data):
     #dim needs to be even
     assert dim % 2 == 0
 
-    data_right_size = torch.flatten(data, 0, 1).unsqueeze(1).float()
+    data_right_size = torch.flatten(data, 0, 1).unsqueeze(1).float().to(device)
 
     op = torch.nn.Conv2d(1, 1, 2, stride=2, padding=0).to(device)
 
@@ -91,7 +64,7 @@ def ave_one_level(data):
 
 #====================================================================================
 
-def make_dict_all_sizes(data):
+def make_dict_all_sizes(data,device='cpu'):
     """
     Makes a dictionary of data at every refinedment size from current->1
 
@@ -115,8 +88,8 @@ def make_dict_all_sizes(data):
     for i in range(int(np.log2(dim))):
         #decrease
         print("i = ", i)
-        data = ave_one_level(data)
-        dic[str(data.shape[-1])] = data
+        data = ave_one_level(data,device)
+        dic[str(data.shape[-1])] = data.to(device)
 
     print(dic.keys())
 
@@ -191,6 +164,9 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
     except:
         print('create model {} ...'.format(model_path_this))
         model_time = tnet.ResNet(train_data, val_data, step_size, model_name=model_path_this)
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("device = ", device)
+        model_time.to(device)
 
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model_time.parameters())
@@ -340,6 +316,14 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
     print("truth_with_step_size[:, :-3] shape =", truth_with_step_size[:, :-3].shape)
     loss = mse(y_preds, truth_with_step_size)
     if plot:
+        try:
+            y_pred = y_pred.cpu()
+        except:
+            pass
+        try:
+            truth_with_step_size = truth_with_step_size.cpu()
+        except:
+            pass
         print("y_pred shape = ", y_preds.shape)
         print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:, 3:].shape)
         plt.title("(0,0) ")
@@ -426,6 +410,11 @@ def grow(data, dim_full=128):
     outputs:
         data_full: tensor size (n_points, n_timesteps, size_full, size_full)
     '''
+    try:
+        data = data.cpu()
+    except:
+        pass
+    
     n_points, n_timesteps, dim_small, _ = data.shape
     print("dim_full = ", dim_full)
     print("dim_small = ", dim_small)
@@ -476,17 +465,19 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title = "find_erro
 def load_and_make_dict(data_dir, have_test = False):
     """load data and make dictionary with all levels"""
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print("device = ", device)
     #load data
     train_data = torch.tensor(np.load(os.path.join(data_dir, 'train_data.npy')))
     val_data = torch.tensor(np.load(os.path.join(data_dir, 'val_data.npy')))
 
-    train_dict = make_dict_all_sizes(train_data)
-    val_dict = make_dict_all_sizes(val_data)
+    train_dict = make_dict_all_sizes(train_data,device)
+    val_dict = make_dict_all_sizes(val_data, device)
 
     #if also doing test data
     if have_test:
         test_data = torch.tensor(np.load(os.path.join(data_dir, 'test_data.npy')))
-        test_dict = make_dict_all_sizes(test_data)
+        test_dict = make_dict_all_sizes(test_data,device)
         return train_dict, val_dict, test_dict
     return train_dict, val_dict
 #====================================================================================

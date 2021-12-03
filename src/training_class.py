@@ -22,6 +22,9 @@ class training_class():
         self.unresolved_dict = {}
         self.model_keep = list()
         self.model_used_dict = {}
+        
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("device = ", self.device)
 
         self.tol = tol
 # ==================================================================================
@@ -56,7 +59,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         plt.colorbar()
         plt.show()
 
-    self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list)
+    self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list).to(self.device)
 
     if verbose:
         print("unresolved_list = ", unresolved_list)
@@ -71,7 +74,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
     next_train_data = self.unresolved_dict[str(current_size)] * self.train_dict[str(current_size*2)]
     if verbose:
         print(next_train_data.shape)
-        plt.imshow(next_train_data[0, 0])
+        plt.imshow(next_train_data[0, 0].cpu())
         plt.colorbar()
         plt.title("Next data going to size "+ str(current_size*2))
         plt.show()
@@ -91,6 +94,8 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
         trains and does everything for 2nd iteration
     """
 
+    print("self.unresolved_dict[str(int(current_size/2))]= ", self.unresolved_dict[str(int(current_size/2))].is_cuda)
+    print("self.train_dict[str(current_size)] = ", self.train_dict[str(current_size)].is_cuda)
     train_data = self.unresolved_dict[str(int(current_size/2))] * self.train_dict[str(current_size)]
 
     model_idx_list = np.ones((current_size, current_size))*(-1) #start with all -1
@@ -122,12 +127,14 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
                         print("not resolved, fitting new model")
                     k = int(np.log2(step_size))
                     #if no model good, train new model
-                    models, step_sizes, mse_list, idx_lowest, n_forward_list = utils.find_best_timestep(self.train_dict[str(current_size)][:, :, i, j],
+                    output = utils.find_best_timestep(self.train_dict[str(current_size)][:, :, i, j],
                                                                   self.val_dict[str(current_size)][:, :, i, j],
                                                                   self.val_dict[str(current_size)][:, :, i, j],
                                                                   current_size, model_dir=self.model_dir, make_new=make_new,
                                                                   i=i, j=j, start_k=2, largest_k=3, dont_train=dont_train)
-
+                    models, step_sizes, mse_list, idx_lowest, n_forward_list = output
+                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], model, tol=self.tol)
+                    print("Error of added model is: ", loss)
                     self.model_keep.append(models[idx_lowest])
                     model_idx_list[i, j] = len(self.model_keep)-1
     self.model_used_dict[str(current_size)] = model_idx_list
@@ -160,11 +167,14 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
         print("unresolved_list_big = ", unresolved_list_big)
         print("loss_big = ", loss_big)
         plt.figure()
-        plt.imshow(np.log10(loss_big), cmap='Greys')
+        try:
+            plt.imshow(np.log10(loss_big).cpu(), cmap='Greys')
+        except:
+            plt.imshow(np.log10(loss_big), cmap='Greys')
         plt.colorbar()
         plt.title("log(loss)")
         plt.show()
-    self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list_big)
+    self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list_big).to(self.device)
     if verbose:
         print("unresolved_dict = ", self.unresolved_dict)
 
