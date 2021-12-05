@@ -133,10 +133,8 @@ class ResNet(torch.nn.Module):
             data = self.val_data[:, ::self.step_size]
 
         n_points, n_timesteps, _, _ = data.shape
-#         print("data shape =", data.shape)
         mse_list = np.zeros(n_points)
         pred_list_all = torch.ones(data.shape[:(self.n_inputs-1)])*(-1)
-#         print("pred_list_all= ", pred_list_all.shape)
         for num in range(n_points):
             y_pred = data[num, :self.n_inputs, 0, 0].float().T.to(self.device)
             pred = y_pred
@@ -151,8 +149,6 @@ class ResNet(torch.nn.Module):
 
             mse = np.mean((pred.cpu().detach().numpy() - data[num].cpu().detach().numpy())**2)
             mse_list[num] = mse
-#             print("pred_list_all[num]= ", pred_list_all[num].shape)
-#             print("pred_shape = ", pred.shape)
             pred_list_all[num,:,0] = pred
             
         return pred_list_all, np.mean(mse_list)

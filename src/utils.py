@@ -268,17 +268,16 @@ def plot_lowest_error(model, i=0, title=None):
 
 
     """
-    # data  = torch.flatten(data, 2,3)
-    # _, total_steps, _ = data.shape
+    print("plot lowest error")
+    plt.figure()
     y_preds, mse = model.predict_mse()
-    print(y_preds)
-    plt.plot(y_preds[i].detach().numpy(), label="Predicted")
-    print("y_preds shape = ", y_preds.shape)
+    plt.plot(y_preds[i,:,0].detach().numpy(), label="Predicted")
     plt.plot(model.val_data[i, ::model.step_size, 0, 0].cpu(), label="Truth")
-    plt.ylim([-.1, 1.1])
+#     plt.ylim([-.1, 1.1])
     plt.legend()
     if title is not None:
         plt.title(title+": mse = "+str(mse))
+        
     plt.show()
 #====================================================================================
 def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
@@ -380,10 +379,16 @@ def mse(data1, data2):
     print("data1 shape =", data1.shape)
     print("data2 shape =", data2.shape)
     #made 4 dims
-    if len(data1.shape) != 4:
+    if len(data1.shape) ==32:
         data1 = torch.tensor(data1).unsqueeze(2).unsqueeze(3)
-    if len(data2.shape) != 4:
+    if len(data2.shape) == 2:
         data2 = torch.tensor(data2).unsqueeze(2).unsqueeze(3)
+    if len(data1.shape) == 3:
+        assert data1.shape[2] == 1
+        data1 = torch.tensor(data1).unsqueeze(3)
+    if len(data2.shape) == 3:
+        assert data2.shape[2] == 1
+        data2 = torch.tensor(data2).unsqueeze(3)
 
     #need to be 4d now
     assert len(data1.shape) == 4
