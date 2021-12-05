@@ -30,7 +30,8 @@ class training_class():
         self.tol = tol
         self.n_inputs = n_inputs
 # ==================================================================================
-def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True, start_k=2, largest_k=4):
+def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True, 
+                   start_k=2, largest_k=4, plot_all_timesteps=False):
     """
         train 1 level
     """
@@ -46,7 +47,12 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         print("best step size = ", step_sizes[idx_lowest])
         print("step_sizes = ", step_sizes)
         print("mse = ", mse_list)
-        utils.plot_lowest_error(models[idx_lowest], i=0, title="step_size = " +str(step_sizes[idx_lowest]))
+        if plot_all_timesteps:
+            for i in range(len(models)):
+                utils.plot_lowest_error(models[i], i=0, title="step_size = " +str(step_sizes[i]))
+        else:
+            utils.plot_lowest_error(models[idx_lowest], i=0, title="step_size = " +str(step_sizes[idx_lowest]))
+        
 
     resolved, loss, unresolved_list = utils.find_error_4(self.val_dict[str(current_size)],
                                                          models[idx_lowest], self.val_dict[str(current_size*2)],
@@ -92,7 +98,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
 
     return self, resolved
 
-def train_next_step(self, current_size, verbose=True, make_new=False, dont_train=True):
+def train_next_step(self, current_size, verbose=True, make_new=False, dont_train=True,start_k=2, largest_k=3):
     """
         trains and does everything for 2nd iteration
     """
@@ -139,7 +145,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
                                                                   self.val_dict[str(current_size)][:, :, i, j],
                                                                   self.val_dict[str(current_size)][:, :, i, j],
                                                                   current_size, model_dir=self.model_dir, make_new=make_new,
-                                                                  i=i, j=j, start_k=2, largest_k=3, 
+                                                                  i=i, j=j, start_k=start_k, largest_k=largest_k, 
                                                                   dont_train=dont_train, n_inputs=self.n_inputs)
                     models, step_sizes, mse_list, idx_lowest, n_forward_list = output
                     print("mse_list = ", mse_list)

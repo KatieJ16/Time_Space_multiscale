@@ -330,7 +330,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 0], label="truth")
         # plt.xlim([-2,30])
-        plt.ylim([-.1, 1.1])
+#         plt.ylim([-.1, 1.1])
         plt.legend()
         plt.show()
 
@@ -338,7 +338,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 0], label="truth")
         # plt.xlim([-2,30])
-        plt.ylim([-.1, 1.1])
+#         plt.ylim([-.1, 1.1])
         plt.legend()
         plt.show()
 
@@ -346,7 +346,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 1], label="truth")
         # plt.xlim([-2,30])
-        plt.ylim([-.1, 1.1])
+#         plt.ylim([-.1, 1.1])
         plt.legend()
         plt.show()
 
@@ -354,7 +354,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 1], label="truth")
         plt.legend()
-        plt.ylim([-.1, 1.1])
+#         plt.ylim([-.1, 1.1])
         plt.show()
 
     resolved = loss.max() <= tol
