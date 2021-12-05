@@ -40,12 +40,16 @@ print("using new ResNet thing")
 class ResNet(torch.nn.Module):
     def __init__(self, train_data, val_data,
         step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
-        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8):
+        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8, n_inputs=3):
 
         super(ResNet, self).__init__()
+        
+        #dim needs to be n_inputs
+        dim = n_inputs
 
         self.step_size = step_size
         self.model_name = model_name
+        self.n_inputs = n_inputs
         
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("device = ", self.device)
@@ -123,20 +127,21 @@ class ResNet(torch.nn.Module):
         return
 
     def predict_mse(self, data=None):
-        n_inputs = 3
 
         if data is None:
             #use data in model if none imported
             data = self.val_data[:, ::self.step_size]
 
         n_points, n_timesteps, _, _ = data.shape
+#         print("data shape =", data.shape)
         mse_list = np.zeros(n_points)
-        pred_list_all = torch.ones(data.shape[:(n_inputs-1)])*(-1)
+        pred_list_all = torch.ones(data.shape[:(self.n_inputs-1)])*(-1)
+#         print("pred_list_all= ", pred_list_all.shape)
         for num in range(n_points):
-            y_pred = data[num, :n_inputs, 0, 0].float().T.to(self.device)
+            y_pred = data[num, :self.n_inputs, 0, 0].float().T.to(self.device)
             pred = y_pred
 
-            for i in range(n_timesteps-n_inputs):
+            for i in range(n_timesteps-self.n_inputs):
                 y_next = self.forward(y_pred)
                 pred = torch.cat((pred,y_next))
                 y_next = torch.cat((y_pred[1:], y_next))
@@ -146,10 +151,13 @@ class ResNet(torch.nn.Module):
 
             mse = np.mean((pred.cpu().detach().numpy() - data[num].cpu().detach().numpy())**2)
             mse_list[num] = mse
-            pred_list_all[num] = pred
+#             print("pred_list_all[num]= ", pred_list_all[num].shape)
+#             print("pred_shape = ", pred.shape)
+            pred_list_all[num,:,0] = pred
+            
         return pred_list_all, np.mean(mse_list)
-    
-    def form_data(self, data, step_size = 1):
+ 
+    def form_data(self, data, step_size=1):
         """
         Forms data to input to network.
 
@@ -158,15 +166,29 @@ class ResNet(torch.nn.Module):
             step_size: int
 
         outputs:
-            inputs, torch shape (max_points, 3)
+            inputs, torch shape (max_points, self.n_inputs)
             outputs, torch shape (max_points, 1)
         """
         print("data shape = ", data.shape)
+        n_points, n_timesteps, _, _ = data.shape
         train_data = data[:,::step_size]
-        inputs = torch.cat((train_data[:,:-3,0], train_data[:,1:-2,0], train_data[:,2:-1,0]), axis = 2)
+        train_data = torch.flatten(train_data, start_dim=2)
+        print("train_data ", train_data.shape)
+        inputs = torch.cat((train_data[:,:-self.n_inputs], train_data[:,1:(-self.n_inputs+1)]), axis = 2)
+        for i in range(2,self.n_inputs):
+            inputs = torch.cat((inputs, train_data[:,i:(-self.n_inputs+i)]), axis = 2)
         inputs = torch.flatten(inputs, end_dim=1)
-        outputs = train_data[:,3:,0]
+#         print("inputs shape = ", inputs.shape)
+        outputs = train_data[:,self.n_inputs:]
         outputs = torch.flatten(outputs, end_dim=1)
+        
+#         print("inputs shape = ", inputs.shape)
+#         print("n_points * (n_timesteps - self.n_inputs) = ", n_points * (n_timesteps - self.n_inputs))
+#         print("outptus shape = ", outputs.shape)
+        
+#         assert inputs.shape == (n_points * (n_timesteps - self.n_inputs), self.n_inputs)
+#         assert outputs.shape == (n_points * (n_timesteps - self.n_inputs), 1)
+#         print("output = ", outputs.shape)
 
         return inputs.to(self.device), outputs.to(self.device)
 

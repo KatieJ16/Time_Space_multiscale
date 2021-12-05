@@ -120,7 +120,7 @@ def form_data(data, step_size=1):
 def train_one_timestep(step_size, train_data, val_data=None, test_data=None, current_size=1,
                        dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
                        lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-4,
-                       model_dir='./models/toy2a', i=None, j=None, print_every=1000):
+                       model_dir='./models/toy2a', i=None, j=None, print_every=1000, n_inputs=3):
 
     """
     fits or loads model at 1 timestep
@@ -163,7 +163,7 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
             return model_time
     except:
         print('create model {} ...'.format(model_path_this))
-        model_time = tnet.ResNet(train_data, val_data, step_size, model_name=model_path_this)
+        model_time = tnet.ResNet(train_data, val_data, step_size, model_name=model_path_this, n_inputs=n_inputs)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("device = ", device)
         model_time.to(device)
@@ -182,7 +182,7 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
                        dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
                        lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-4,
                        criterion=torch.nn.MSELoss(reduction='none'), model_dir="./models/toy2",
-                       i=None, j=None, print_every=1000):
+                       i=None, j=None, print_every=1000, n_inputs=3):
     """
     Trains models with different timestep sizes and finds lowest error
 
@@ -241,7 +241,7 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
         model_time = train_one_timestep(step_size, train_data, val_data, test_data=test_data, current_size=current_size,
                        dt=dt, n_forward=n_forward, noise=noise, make_new=make_new, dont_train=dont_train,
                        lr =lr, max_epochs=max_epochs, batch_size=batch_size, threshold=threshold,
-                       model_dir=model_dir, i=i, j=j, print_every=print_every)
+                       model_dir=model_dir, i=i, j=j, print_every=print_every, n_inputs=n_inputs)
         models.append(model_time)
 
 
@@ -271,9 +271,10 @@ def plot_lowest_error(model, i=0, title=None):
     # data  = torch.flatten(data, 2,3)
     # _, total_steps, _ = data.shape
     y_preds, mse = model.predict_mse()
+    print(y_preds)
     plt.plot(y_preds[i].detach().numpy(), label="Predicted")
-    print("y_preds[i] shape = ", y_preds[i].shape)
-    plt.plot(model.val_data[i, ::model.step_size, 0, 0], label="Truth")
+    print("y_preds shape = ", y_preds.shape)
+    plt.plot(model.val_data[i, ::model.step_size, 0, 0].cpu(), label="Truth")
     plt.ylim([-.1, 1.1])
     plt.legend()
     if title is not None:

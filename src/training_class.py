@@ -11,7 +11,7 @@ class training_class():
         defining a class that will do all the training and stuff.
     """
 
-    def __init__(self, data_dir, model_dir, result_dir, tol):
+    def __init__(self, data_dir, model_dir, result_dir, tol,n_inputs=3):
 
         self.data_dir = data_dir
         self.model_dir = model_dir
@@ -23,12 +23,14 @@ class training_class():
         self.model_keep = list()
         self.model_used_dict = {}
         
+        
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("device = ", self.device)
 
         self.tol = tol
+        self.n_inputs = n_inputs
 # ==================================================================================
-def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True):
+def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True, start_k=2, largest_k=4):
     """
         train 1 level
     """
@@ -36,7 +38,8 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
                                                               self.val_dict[str(current_size)],
                                                               self.val_dict[str(current_size)],
                                                               current_size, model_dir=self.model_dir, make_new=make_new,
-                                                              start_k=2, largest_k=4, dont_train=dont_train)
+                                                              start_k=start_k, largest_k=largest_k,
+                                                              dont_train=dont_train,n_inputs=self.n_inputs)
 
     # print if verbose
     if verbose:
@@ -107,13 +110,18 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
             data_this = train_data[:, :, i, j]
             if (torch.min(data_this) == 0) and (torch.max(data_this) == 0):
                 print("zero, no need to train")
+                model_used = self.model_used_dict[str(int(current_size/2))][i//2,j//2]
+                print("saved model is ",model_used)
+                model_idx_list[i, j] = model_used
                 #don't need to do anything is model is resolved
                 continue
             else:
             #see if the error is low enough on already made model
+                mse_each_model_list = []
                 for m, model in enumerate(self.model_keep):
                     loss, resolved = utils.find_error_1(data_this, model, tol=self.tol)
                     step_size = model.step_size
+                    mse_each_model_list.append(loss)
                     if verbose:
                         print("model ", m, " has loss = ", loss)
                     if resolved:
@@ -131,12 +139,22 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
                                                                   self.val_dict[str(current_size)][:, :, i, j],
                                                                   self.val_dict[str(current_size)][:, :, i, j],
                                                                   current_size, model_dir=self.model_dir, make_new=make_new,
-                                                                  i=i, j=j, start_k=2, largest_k=3, dont_train=dont_train)
+                                                                  i=i, j=j, start_k=2, largest_k=3, 
+                                                                  dont_train=dont_train, n_inputs=self.n_inputs)
                     models, step_sizes, mse_list, idx_lowest, n_forward_list = output
-                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], model, tol=self.tol)
+                    print("mse_list = ", mse_list)
+                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], models[idx_lowest], tol=self.tol)
                     print("Error of added model is: ", loss)
-                    self.model_keep.append(models[idx_lowest])
-                    model_idx_list[i, j] = len(self.model_keep)-1
+                    mse_each_model_list.append(loss)
+                    print("mse_each_model_list.append(loss) = ", mse_each_model_list)
+                    idx_best_model = np.argmin(np.array(mse_each_model_list))
+                    print("best model found was ", idx_best_model)
+                    
+                    #if model that was just made if the best, add to list
+                    if idx_best_model == len(self.model_keep):
+                        self.model_keep.append(models[idx_lowest])
+                        
+                    model_idx_list[i, j] = idx_best_model
     self.model_used_dict[str(current_size)] = model_idx_list
     if verbose:
         print("self.model_used_dict[str(current_size)] = ", self.model_used_dict[str(current_size)])
