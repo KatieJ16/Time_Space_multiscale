@@ -116,7 +116,10 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
             data_this = train_data[:, :, i, j]
             if (torch.min(data_this) == 0) and (torch.max(data_this) == 0):
                 print("zero, no need to train")
-                model_used = self.model_used_dict[str(int(current_size/2))][i//2,j//2]
+                try:
+                    model_used = self.model_used_dict[str(int(current_size/2))][i//2,j//2]
+                except:
+                    model_used = self.model_used_dict[str(int(current_size/2))][i//2][j//2]
                 print("saved model is ",model_used)
                 model_idx_list[i, j] = model_used
                 #don't need to do anything is model is resolved

@@ -149,7 +149,10 @@ class ResNet(torch.nn.Module):
 
             mse = np.mean((pred.cpu().detach().numpy() - data[num].cpu().detach().numpy())**2)
             mse_list[num] = mse
-            pred_list_all[num,:,0] = pred
+            try:
+                pred_list_all[num,:,0] = pred
+            except:
+                pred_list_all[num,:] = pred
             
         return pred_list_all, np.mean(mse_list)
  

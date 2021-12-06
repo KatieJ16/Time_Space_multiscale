@@ -271,7 +271,10 @@ def plot_lowest_error(model, i=0, title=None):
     print("plot lowest error")
     plt.figure()
     y_preds, mse = model.predict_mse()
-    plt.plot(y_preds[i,:,0].detach().numpy(), label="Predicted")
+    try:
+        plt.plot(y_preds[i,:,0].detach().numpy(), label="Predicted")
+    except:
+        plt.plot(y_preds[i].detach().numpy(), label="Predicted")
     plt.plot(model.val_data[i, ::model.step_size, 0, 0].cpu(), label="Truth")
 #     plt.ylim([-.1, 1.1])
     plt.legend()
@@ -379,7 +382,7 @@ def mse(data1, data2):
     print("data1 shape =", data1.shape)
     print("data2 shape =", data2.shape)
     #made 4 dims
-    if len(data1.shape) ==32:
+    if len(data1.shape) == 2:
         data1 = torch.tensor(data1).unsqueeze(2).unsqueeze(3)
     if len(data2.shape) == 2:
         data2 = torch.tensor(data2).unsqueeze(2).unsqueeze(3)
