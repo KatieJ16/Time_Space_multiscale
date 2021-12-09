@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 import numpy as np
 import scipy.interpolate
@@ -39,7 +40,7 @@ print("using new ResNet thing")
 
 class ResNet(torch.nn.Module):
     def __init__(self, train_data, val_data,
-        step_size = 1, dim = 3, out_dim = 1,n_hidden_nodes=20, n_hidden_layers=5,
+        step_size = 1, dim = 3, out_dim = 1, n_hidden_nodes=20, n_hidden_layers=5,
         model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8, n_inputs=3):
 
         super(ResNet, self).__init__()
@@ -127,6 +128,18 @@ class ResNet(torch.nn.Module):
         return
 
     def predict_mse(self, data=None):
+        """
+            Predicts system in time and finds mse between predicted and truth
+            
+            inputs:
+                data (None), data of size (n_points, n_timesteps, 1, 1) optional for truth data. 
+                default is the validation data of the model
+            outputs:
+                predicted: tensor of size (n_points, n_timesteps) for the predictions
+                mse: float, mean squared error between predicted and truth
+            
+        """
+        
 
         if data is None:
             #use data in model if none imported
@@ -147,8 +160,9 @@ class ResNet(torch.nn.Module):
 
                 y_pred = y_next
 
-            mse = np.mean((pred.cpu().detach().numpy() - data[num].cpu().detach().numpy())**2)
+            mse = np.mean((pred.cpu().detach().numpy() - data[num,:,0,0].cpu().detach().numpy())**2)
             mse_list[num] = mse
+            
             try:
                 pred_list_all[num,:,0] = pred
             except:
