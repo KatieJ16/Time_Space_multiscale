@@ -12,9 +12,9 @@ print("using new ResNet thing")
 
 
 class ResNet(torch.nn.Module):
-    def __init__(self, train_data, val_data,
-        step_size = 1, dim = 3, out_dim = 1, n_hidden_nodes=20, n_hidden_layers=5,
-        model_name="model.pt", activation=nn.ReLU(), n_epochs = 1000, threshold = 1e-8, n_inputs=3):
+    def __init__(self, train_data, val_data, step_size=1, dim=3, out_dim=1,
+                 n_hidden_nodes=20, n_hidden_layers=5, model_name="model.pt",
+                 activation=nn.ReLU(), n_epochs=1000, threshold=1e-8, n_inputs=3):
 
         super(ResNet, self).__init__()
 
@@ -56,8 +56,21 @@ class ResNet(torch.nn.Module):
         return x
 
 
-    def train_model(self,optimizer, loss_func, n_no_improve = 1000):
-        #train until val loss min (doesn't improve in n_no_improve)
+    def train_model(self, optimizer, loss_func, n_no_improve=1000):
+        """
+            trains model. will train until the validation error has not improved
+            in n_no_improve steps
+
+            inputs:
+            optimizer: such as torch.optim.Adam
+            loss_func: such as torch.nn.MSELoss()
+            n_no_improve: (1000) number of step to keep training when validation
+                error is not increasing
+
+            outputs:
+                no returned value, but model will be trained.
+        """
+
         min_val_loss = torch.tensor(1e5) #some big number
         going = True
         epoch = 0
@@ -126,19 +139,19 @@ class ResNet(torch.nn.Module):
 
             for i in range(n_timesteps-self.n_inputs):
                 y_next = self.forward(y_pred)
-                pred = torch.cat((pred,y_next))
+                pred = torch.cat((pred, y_next))
                 y_next = torch.cat((y_pred[1:], y_next))
 
 
                 y_pred = y_next
-
-            mse = np.mean((pred.cpu().detach().numpy() - data[num,:,0,0].cpu().detach().numpy())**2)
+                
+            mse = np.mean((pred.cpu().detach().numpy() - data[num, :, 0, 0].cpu().detach().numpy())**2)
             mse_list[num] = mse
 
             try:
-                pred_list_all[num,:,0] = pred
+                pred_list_all[num, :, 0] = pred
             except:
-                pred_list_all[num,:] = pred
+                pred_list_all[num, :] = pred
 
         return pred_list_all, np.mean(mse_list)
 
@@ -156,16 +169,17 @@ class ResNet(torch.nn.Module):
         """
         if verbose:
             print("data shape = ", data.shape)
-        n_points, n_timesteps, _, _ = data.shape
-        train_data = data[:,::step_size]
+        n_points, _, _, _ = data.shape
+        train_data = data[:, ::step_size]
         train_data = torch.flatten(train_data, start_dim=2)
         if verbose:
             print("train_data ", train_data.shape)
-        inputs = torch.cat((train_data[:,:-self.n_inputs], train_data[:,1:(-self.n_inputs+1)]), axis = 2)
-        for i in range(2,self.n_inputs):
-            inputs = torch.cat((inputs, train_data[:,i:(-self.n_inputs+i)]), axis = 2)
+        inputs = torch.cat((train_data[:, :-self.n_inputs],
+                            train_data[:, 1:(-self.n_inputs+1)]), axis=2)
+        for i in range(2, self.n_inputs):
+            inputs = torch.cat((inputs, train_data[:, i:(-self.n_inputs+i)]), axis=2)
         inputs = torch.flatten(inputs, end_dim=1)
-        outputs = train_data[:,self.n_inputs:]
+        outputs = train_data[:, self.n_inputs:]
         outputs = torch.flatten(outputs, end_dim=1)
 
         return inputs.to(self.device), outputs.to(self.device)
