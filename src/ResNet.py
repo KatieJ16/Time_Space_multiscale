@@ -12,14 +12,13 @@ print("using new ResNet thing")
 
 
 class ResNet(torch.nn.Module):
-    def __init__(self, train_data, val_data, step_size=1, dim=3, out_dim=1,
+    def __init__(self, train_data, val_data, step_size=1, out_dim=1,
                  n_hidden_nodes=20, n_hidden_layers=5, model_name="model.pt",
-                 activation=nn.ReLU(), n_epochs=1000, threshold=1e-8, n_inputs=3):
+                 activation=nn.ReLU(), n_epochs=500000, threshold=1e-8,
+                 n_inputs=3, print_every=1000, save_every=100):
 
         super(ResNet, self).__init__()
 
-        #dim needs to be n_inputs
-        dim = n_inputs
 
         self.step_size = step_size
         self.model_name = model_name
@@ -32,13 +31,15 @@ class ResNet(torch.nn.Module):
         self.n_hidden_nodes = n_hidden_nodes
         self.n_epochs = n_epochs
         self.threshold = threshold
+        self.save_every = save_every
+        self.print_every = print_every
 
         self.train_data = train_data
         self.val_data = val_data
         self.inputs, self.outputs = self.form_data(train_data, step_size)
         self.val_inputs, self.val_outputs = self.form_data(val_data, step_size)
 
-        self.hidden = nn.Linear(dim, n_hidden_nodes)   # hidden layer
+        self.hidden = nn.Linear(n_inputs, n_hidden_nodes)   # hidden layer
         for i in range(self.n_hidden_layers):
             self.add_module('Linear_{}'.format(i), torch.nn.Linear(n_hidden_nodes, n_hidden_nodes))
         self.predict = nn.Linear(n_hidden_nodes, out_dim)   # output layer
@@ -48,6 +49,7 @@ class ResNet(torch.nn.Module):
 
 
     def forward(self, x):
+        """ forward step for the ResNet NN """
         #relu
         x = self.activation(self.hidden(x))#.float()))      # activation function for hidden layer
         for i in range(self.n_hidden_layers):
@@ -72,14 +74,8 @@ class ResNet(torch.nn.Module):
         """
 
         min_val_loss = torch.tensor(1e5) #some big number
-        going = True
-        epoch = 0
         no_improve = 0
-        save_every = 100
-        print_every = 1000
-        while going:
-        # for epoch in range(self.n_epochs):
-            epoch += 1
+        for epoch in range(self.n_epochs):
             outputs = self.outputs.reshape(-1, 1)
 
             prediction = self.forward(self.inputs.float())
@@ -90,11 +86,11 @@ class ResNet(torch.nn.Module):
             optimizer.step()
 
             #check validation and save if needed
-            if epoch % save_every == 0:
+            if epoch % self.save_every == 0:
                 if self.val_inputs is not None:
                     val_pred = self.forward(self.val_inputs.float().to(self.device))
                     val_loss = loss_func(val_pred.float(), self.val_outputs.float())
-                    if epoch % print_every == 0:
+                    if epoch % self.print_every == 0:
                         print("epoch ", epoch, ": train_error: ", loss.cpu().detach().numpy(), ": val_loss ", val_loss.cpu().detach().numpy(), ": min_val_loss ", min_val_loss.cpu().detach().numpy())
                     if val_loss < min_val_loss:
                         no_improve = 0
@@ -105,7 +101,7 @@ class ResNet(torch.nn.Module):
                             return
                     else:
 
-                        no_improve += save_every
+                        no_improve += self.save_every
                         if no_improve >= n_no_improve:
                             print("Model finished training at epoch ", epoch, " with loss ", min_val_loss.cpu().detach().numpy())
                             return
@@ -144,7 +140,7 @@ class ResNet(torch.nn.Module):
 
 
                 y_pred = y_next
-                
+
             mse = np.mean((pred.cpu().detach().numpy() - data[num, :, 0, 0].cpu().detach().numpy())**2)
             mse_list[num] = mse
 
@@ -169,7 +165,7 @@ class ResNet(torch.nn.Module):
         """
         if verbose:
             print("data shape = ", data.shape)
-        n_points, _, _, _ = data.shape
+
         train_data = data[:, ::step_size]
         train_data = torch.flatten(train_data, start_dim=2)
         if verbose:

@@ -18,10 +18,10 @@ def isPowerOfTwo(n):
 
     output: boolean
     """
-    return (np.ceil(np.log2(n)) == np.floor(np.log2(n)))
+    return np.ceil(np.log2(n)) == np.floor(np.log2(n))
 #====================================================================================
 
-def ave_one_level(data,device = 'cpu'):
+def ave_one_level(data, device='cpu', verbose=False):
     '''
     takes averages to shrink data 1 level
 
@@ -31,7 +31,7 @@ def ave_one_level(data,device = 'cpu'):
     output:
         processed data: tensor of size (n_points, n_timesteps, dim/2, dim/2)
     '''
-    
+
     if not torch.is_tensor(data): #needs to be a tensor
         data = torch.tensor(data)
 
@@ -53,18 +53,20 @@ def ave_one_level(data,device = 'cpu'):
     for param in op.parameters():
         param.requires_grad = False
 
-    print("Transforming")
+    if verbose:
+        print("Transforming")
 
     shrunk = op(data_right_size)
 
-    print("reshape to print")
+    if verbose:
+        print("reshape to print")
 
     return shrunk.squeeze(1).reshape((n_points, n_timesteps, dim//2, dim//2))
 
 
 #====================================================================================
 
-def make_dict_all_sizes(data,device='cpu'):
+def make_dict_all_sizes(data, device='cpu', verbose=False):
     """
     Makes a dictionary of data at every refinedment size from current->1
 
@@ -72,7 +74,8 @@ def make_dict_all_sizes(data,device='cpu'):
         data: tensor(or array) of size (n_points, n_timesteps, dim, dim)
 
     outputs:
-        dic: dictionary of tensors. Keys are dim size, tensors are size (n_points, n_timesteps, dim, dim)
+        dic: dictionary of tensors. Keys are dim size,
+             tensors are size (n_points, n_timesteps, dim, dim)
 
     """
 
@@ -87,40 +90,22 @@ def make_dict_all_sizes(data,device='cpu'):
 
     for i in range(int(np.log2(dim))):
         #decrease
-        print("i = ", i)
-        data = ave_one_level(data,device)
+        if verbose:
+            print("i = ", i)
+        data = ave_one_level(data, device, verbose)
         dic[str(data.shape[-1])] = data.to(device)
 
-    print(dic.keys())
+    if verbose:
+        print(dic.keys())
 
     return dic
 
-#===================================================================================
-def form_data(data, step_size=1):
-    """
-    Forms data to input to network.
-
-    inputs:
-        data: torch. shape, (n_points, n_timesteps, 1, 1)
-        step_size: int
-
-    outputs:
-        inputs, torch shape (max_points, 3)
-        outputs, torch shape (max_points, 1)
-    """
-    print("data shape = ", data.shape)
-    train_data = data[:, ::step_size]
-    inputs = torch.cat((train_data[:, :-3, 0], train_data[:, 1:-2, 0], train_data[:, 2:-1, 0]), axis=2)
-    inputs = torch.flatten(inputs, end_dim=1)
-    outputs = train_data[:, 3:, 0]
-    outputs = torch.flatten(outputs, end_dim=1)
-
-    return inputs, outputs
 #====================================================================================
 def train_one_timestep(step_size, train_data, val_data=None, test_data=None, current_size=1,
                        dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
-                       lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-4,
-                       model_dir='./models/toy2a', i=None, j=None, print_every=1000, n_inputs=3):
+                       lr=1e-3, max_epochs=500000, batch_size=50, threshold=1e-8,
+                       model_dir='./models/toy2a', i=None, j=None, print_every=1000,
+                       n_inputs=3, criterion=torch.nn.MSELoss(), save_every=100):
 
     """
     fits or loads model at 1 timestep
@@ -163,12 +148,17 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
             return model_time
     except:
         print('create model {} ...'.format(model_path_this))
-        model_time = tnet.ResNet(train_data, val_data, step_size, model_name=model_path_this, n_inputs=n_inputs)
+        model_time = tnet.ResNet(train_data, val_data, step_size,
+                                 model_name=model_path_this, n_inputs=n_inputs,
+                                 n_hidden_nodes=20, n_hidden_layers=5,
+                                 activation=nn.ReLU(), n_epochs=max_epochs,
+                                 threshold=threshold, print_every=print_every,
+                                 save_every=save_every)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("device = ", device)
         model_time.to(device)
 
-    criterion = torch.nn.MSELoss()
+    # criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model_time.parameters())
 
     model_time.train_model(optimizer, criterion)
@@ -181,7 +171,7 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
 def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0, largest_k=7,
                        dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
                        lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-4,
-                       criterion=torch.nn.MSELoss(reduction='none'), model_dir="./models/toy2",
+                       criterion=torch.nn.MSELoss(), model_dir="./models/toy2",
                        i=None, j=None, print_every=1000, n_inputs=3):
     """
     Trains models with different timestep sizes and finds lowest error
@@ -217,13 +207,13 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
 
 
     #transform data shapes if needed
-    if(len(train_data.shape) == 2):
+    if len(train_data.shape) == 2:
         train_data = train_data.unsqueeze(2).unsqueeze(3)
         val_data = val_data.unsqueeze(2).unsqueeze(3)
         test_data = test_data.unsqueeze(2).unsqueeze(3)
-    assert(len(train_data.shape) == 4)
-    assert(len(val_data.shape) == 4)
-    assert(len(test_data.shape) == 4)
+    assert len(train_data.shape) == 4
+    assert len(val_data.shape) == 4
+    assert len(test_data.shape) == 4
 
     models = list()
     step_sizes = list()
@@ -233,19 +223,22 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
     mse_less = 0
     idx_lowest = -1
 
-    n_points, n_timesteps, _, _ = train_data.shape
-
     for idx, k in enumerate(range(start_k, largest_k)):
         step_size = 2**k
         step_sizes.append(step_size)
-        model_time = train_one_timestep(step_size, train_data, val_data, test_data=test_data, current_size=current_size,
-                       dt=dt, n_forward=n_forward, noise=noise, make_new=make_new, dont_train=dont_train,
-                       lr =lr, max_epochs=max_epochs, batch_size=batch_size, threshold=threshold,
-                       model_dir=model_dir, i=i, j=j, print_every=print_every, n_inputs=n_inputs)
+        model_time = train_one_timestep(step_size, train_data, val_data,
+                                        test_data=test_data, current_size=current_size,
+                                        dt=dt, n_forward=n_forward, noise=noise,
+                                        make_new=make_new, dont_train=dont_train,
+                                        lr=lr, max_epochs=max_epochs,
+                                        batch_size=batch_size, threshold=threshold,
+                                        model_dir=model_dir, i=i, j=j,
+                                        print_every=print_every, n_inputs=n_inputs,
+                                        criterion=criterion)
         models.append(model_time)
 
 
-        pred, mse = model_time.predict_mse()
+        _, mse = model_time.predict_mse()
         mse_list.append(mse)
 
         if (mse < mse_lowest) or (math.isnan(mse_lowest)) or (math.isnan(mse)):
@@ -272,7 +265,7 @@ def plot_lowest_error(model, i=0, title=None):
     plt.figure()
     y_preds, mse = model.predict_mse()
     try:
-        plt.plot(y_preds[i,:,0].detach().numpy(), label="Predicted")
+        plt.plot(y_preds[i, :, 0].detach().numpy(), label="Predicted")
     except:
         plt.plot(y_preds[i].detach().numpy(), label="Predicted")
     plt.plot(model.val_data[i, ::model.step_size, 0, 0].cpu(), label="Truth")
@@ -280,10 +273,10 @@ def plot_lowest_error(model, i=0, title=None):
     plt.legend()
     if title is not None:
         plt.title(title+": mse = "+str(mse))
-        
+
     plt.show()
 #====================================================================================
-def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
+def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
     """
     Find error over the 4 squares
 
@@ -302,25 +295,28 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
     if(len(data.shape)) == 2:
         data = data.unsqueeze(2).unsqueeze(3)
     assert len(data.shape) == 4
-    print("truth_data shape =", truth_data.shape)
-    print("data shape = ", data.shape)
-    n_points, n_timesteps, dim, _ = data.shape
+
+    if verbose:
+        print("truth_data shape =", truth_data.shape)
+        print("data shape = ", data.shape)
+    _, _, dim, _ = data.shape
     data = torch.flatten(data, 2, 3)
-    y_preds, mse_avg = model.predict_mse()
+    y_preds, _ = model.predict_mse()
 
     _, _, truth_dim, _ = truth_data.shape
     assert truth_dim >= dim
 
     truth_with_step_size = truth_data[:, ::model.step_size]
 
-    print("truth_data shape = ", truth_data.shape)
-    print("y_preds shape =", y_preds.shape)
-    print("truth_with_step_size shape =", truth_with_step_size.shape)
-    print("truth_with_step_size[:, :-3] shape =", truth_with_step_size[:, :-3].shape)
+    if verbose:
+        print("truth_data shape = ", truth_data.shape)
+        print("y_preds shape =", y_preds.shape)
+        print("truth_with_step_size shape =", truth_with_step_size.shape)
+        print("truth_with_step_size[:, :-3] shape =", truth_with_step_size[:, :-3].shape)
     loss = mse(y_preds, truth_with_step_size)
     if plot:
         try:
-            y_pred = y_pred.cpu()
+            y_preds = y_preds.cpu()
         except:
             pass
         try:
@@ -338,7 +334,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.show()
 
         plt.title("(1,0) ")
-        plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 0], label="truth")
         # plt.xlim([-2,30])
 #         plt.ylim([-.1, 1.1])
@@ -346,7 +342,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.show()
 
         plt.title("(0,1) ")
-        plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 1], label="truth")
         # plt.xlim([-2,30])
 #         plt.ylim([-.1, 1.1])
@@ -354,7 +350,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
         plt.show()
 
         plt.title("(1,1)")
-        plt.plot(y_preds[0, :].detach().numpy() , label="y_preds")
+        plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 1], label="truth")
         plt.legend()
 #         plt.ylim([-.1, 1.1])
@@ -367,7 +363,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False):
 
 #====================================================================================
 
-def mse(data1, data2):
+def mse(data1, data2, verbose=False):
     """
     Finds Mean Squared Error between data1 and data2
 
@@ -379,8 +375,9 @@ def mse(data1, data2):
         mse: array of size (min_dim, min_dim) with mse
 
     """
-    print("data1 shape =", data1.shape)
-    print("data2 shape =", data2.shape)
+    if verbose:
+        print("data1 shape =", data1.shape)
+        print("data2 shape =", data2.shape)
     #made 4 dims
     if len(data1.shape) == 2:
         data1 = torch.tensor(data1).unsqueeze(2).unsqueeze(3)
@@ -400,7 +397,8 @@ def mse(data1, data2):
     #find bigger dim
     size1 = data1.shape[-1]
     size2 = data2.shape[-1]
-    print("sizes = ", size1, size2)
+    if verbose:
+        print("sizes = ", size1, size2)
 
     size_max = max(size1, size2)
 
@@ -423,10 +421,8 @@ def grow(data, dim_full=128):
         data = data.cpu()
     except:
         pass
-    
+
     n_points, n_timesteps, dim_small, _ = data.shape
-    print("dim_full = ", dim_full)
-    print("dim_small = ", dim_small)
     assert dim_full % dim_small == 0 #need small to be multiple of full
 
     divide = dim_full // dim_small
@@ -439,12 +435,13 @@ def grow(data, dim_full=128):
             data_full[:, :, i*divide:(i+1)*divide, j*divide:(j+1)*divide] = repeated
     return data_full
 #====================================================================================
-def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title = "find_error_1"):
+def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_1"):
     """
     Find error over the 1 square
 
     inputs:
-        data: tensor of size (n_points, n_timesteps, dim, dim) to be predicted
+        data: tensor of size (n_points, n_timesteps, dim, dim)
+                to be predicted or size  (n_points, n_timesteps)
         model: Resnet object to predict data on
         tol=1e-5: tolerance level to mark points as resolved or not
         plt=False: boolean whether or not to plot
@@ -457,6 +454,9 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title = "find_erro
     #reshape if needed
     if len(data.shape) == 2:
         data = data[:, ::model.step_size].unsqueeze(2).unsqueeze(3)
+
+    assert len(data.shape) == 4
+
     y_preds, mse = model.predict_mse(data)
 
     if plot:
@@ -471,7 +471,7 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title = "find_erro
 
     return mse, mse <= tol
 #====================================================================================
-def load_and_make_dict(data_dir, have_test = False):
+def load_and_make_dict(data_dir, have_test=False):
     """load data and make dictionary with all levels"""
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -480,13 +480,13 @@ def load_and_make_dict(data_dir, have_test = False):
     train_data = torch.tensor(np.load(os.path.join(data_dir, 'train_data.npy')))
     val_data = torch.tensor(np.load(os.path.join(data_dir, 'val_data.npy')))
 
-    train_dict = make_dict_all_sizes(train_data,device)
+    train_dict = make_dict_all_sizes(train_data, device)
     val_dict = make_dict_all_sizes(val_data, device)
 
     #if also doing test data
     if have_test:
         test_data = torch.tensor(np.load(os.path.join(data_dir, 'test_data.npy')))
-        test_dict = make_dict_all_sizes(test_data,device)
+        test_dict = make_dict_all_sizes(test_data, device)
         return train_dict, val_dict, test_dict
     return train_dict, val_dict
 #====================================================================================
