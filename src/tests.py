@@ -32,6 +32,9 @@ class Tests(unittest.TestCase):
         cls.model = ResNet.ResNet(torch.ones((cls.n_points, cls.n_timesteps, 1, 1)),
                                   torch.ones((cls.n_points, cls.n_timesteps, 1, 1)),
                                   n_inputs = cls.n_inputs)
+
+        np.save('train_data.npy', np.ones((1,1,4,4)))
+        np.save('val_data.npy', np.ones((2,1,4,4)))
 #===============================================================================
 #tests for ResNet
     def test_resnet_make(self):
@@ -110,7 +113,7 @@ class Tests(unittest.TestCase):
             data = torch.zeros((1,1,2,2))
             data = torch.zeros((1,1,1,1))
             find_error_4(data, self.model, truth_data)
-            
+
     def test_mse(self):
         mse1 = utils.mse(torch.ones((20,500,2,2)),torch.ones((20,500,2,2)))
         self.assertTrue(mse1.shape == (2,2))
@@ -150,10 +153,6 @@ class Tests(unittest.TestCase):
             utils.find_error_1(torch.ones([1,2,3,4,5]), self.model)
 
     def test_make_and_load(self):
-        train_data = torch.ones((1, 1, 4,4))
-        val_data = torch.ones((2, 2, 4,4))
-        np.save('train_data.npy', train_data)
-        np.save('val_data.npy', val_data)
         train_dict, val_dict = utils.load_and_make_dict('.')
 
         self.assertTrue( len(train_dict) == 3)
@@ -162,6 +161,27 @@ class Tests(unittest.TestCase):
         self.assertTrue(train_dict['1'].shape == (1,1,1,1))
 
         self.assertTrue( len(val_dict) == 3)
-        self.assertTrue(val_dict['4'].shape == (2,2,4,4))
-        self.assertTrue(val_dict['2'].shape == (2,2,2,2))
-        self.assertTrue(val_dict['1'].shape == (2,2,1,1))
+        self.assertTrue(val_dict['4'].shape == (2,1,4,4))
+        self.assertTrue(val_dict['2'].shape == (2,1,2,2))
+        self.assertTrue(val_dict['1'].shape == (2,1,1,1))
+#==============================================================================
+#tests for training_class
+
+    def test_training_class(self):
+        tol = 1e-8
+        data_dir = '.'
+        model_dir = '.'
+        result_dir = '.'
+
+        tc = training_class.training_class(data_dir, model_dir, result_dir, tol, n_inputs=3)
+
+        current_size = 1
+        tc, resolved = training_class.train_one_step(tc, current_size, make_new=True,
+                                                     verbose=False,
+                                                     start_k=2, largest_k=3,
+                                                     plot_all_timesteps=False)
+
+        current_size = 2
+        tc, resolved = training_class.train_next_step(tc, current_size,
+                                                      verbose=False, make_new=True,
+                                                      start_k=2, largest_k=3)

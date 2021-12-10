@@ -11,7 +11,7 @@ class training_class():
         defining a class that will do all the training and stuff.
     """
 
-    def __init__(self, data_dir, model_dir, result_dir, tol,n_inputs=3):
+    def __init__(self, data_dir, model_dir, result_dir, tol, n_inputs=3):
 
         self.data_dir = data_dir
         self.model_dir = model_dir
@@ -22,26 +22,28 @@ class training_class():
         self.unresolved_dict = {}
         self.model_keep = list()
         self.model_used_dict = {}
-        
-        
+
+
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("device = ", self.device)
 
         self.tol = tol
         self.n_inputs = n_inputs
 # ==================================================================================
-def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True, 
+def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True,
                    start_k=2, largest_k=4, plot_all_timesteps=False):
     """
         train 1 level
     """
-    models, step_sizes, mse_list, idx_lowest, n_forward_list = utils.find_best_timestep(self.train_dict[str(current_size)],
-                                                              self.val_dict[str(current_size)],
-                                                              self.val_dict[str(current_size)],
-                                                              current_size, model_dir=self.model_dir, make_new=make_new,
-                                                              start_k=start_k, largest_k=largest_k,
-                                                              dont_train=dont_train,n_inputs=self.n_inputs)
-
+    output = utils.find_best_timestep(self.train_dict[str(current_size)],
+                                      self.val_dict[str(current_size)],
+                                      self.val_dict[str(current_size)],
+                                      current_size, model_dir=self.model_dir,
+                                      make_new=make_new, start_k=start_k,
+                                      largest_k=largest_k,
+                                      dont_train=dont_train,
+                                      n_inputs=self.n_inputs)
+    models, step_sizes, mse_list, idx_lowest, n_forward_list = output
     # print if verbose
     if verbose:
         print("best step size = ", step_sizes[idx_lowest])
@@ -52,7 +54,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
                 utils.plot_lowest_error(models[i], i=0, title="step_size = " +str(step_sizes[i]))
         else:
             utils.plot_lowest_error(models[idx_lowest], i=0, title="step_size = " +str(step_sizes[idx_lowest]))
-        
+
 
     resolved, loss, unresolved_list = utils.find_error_4(self.val_dict[str(current_size)],
                                                          models[idx_lowest], self.val_dict[str(current_size*2)],
@@ -72,12 +74,8 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
 
     if verbose:
         print("unresolved_list = ", unresolved_list)
-
-#     return self, resolved
-
-    if resolved:
-        print("Resolved!!")
-        return
+        if resolved:
+            print("Resolved!!")
 
     #set up next step
     next_train_data = self.unresolved_dict[str(current_size)] * self.train_dict[str(current_size*2)]
@@ -98,7 +96,8 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
 
     return self, resolved
 
-def train_next_step(self, current_size, verbose=True, make_new=False, dont_train=True,start_k=2, largest_k=3):
+def train_next_step(self, current_size, verbose=True, make_new=False,
+                    dont_train=True, start_k=2, largest_k=3):
     """
         trains and does everything for 2nd iteration
     """
@@ -117,10 +116,10 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
             if (torch.min(data_this) == 0) and (torch.max(data_this) == 0):
                 print("zero, no need to train")
                 try:
-                    model_used = self.model_used_dict[str(int(current_size/2))][i//2,j//2]
+                    model_used = self.model_used_dict[str(int(current_size/2))][i//2, j//2]
                 except:
                     model_used = self.model_used_dict[str(int(current_size/2))][i//2][j//2]
-                print("saved model is ",model_used)
+                print("saved model is ", model_used)
                 model_idx_list[i, j] = model_used
                 #don't need to do anything is model is resolved
                 continue
@@ -137,20 +136,18 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
                         model_idx_list[i, j] = m
                         print("Resolved with loss = ", loss, ": model #", m)
                         break
-                    else:
-                        pass
+
                 if not resolved:
                     if verbose:
                         print("not resolved, fitting new model")
-                    k = int(np.log2(step_size))
                     #if no model good, train new model
                     output = utils.find_best_timestep(self.train_dict[str(current_size)][:, :, i, j],
-                                                                  self.val_dict[str(current_size)][:, :, i, j],
-                                                                  self.val_dict[str(current_size)][:, :, i, j],
-                                                                  current_size, model_dir=self.model_dir, make_new=make_new,
-                                                                  i=i, j=j, start_k=start_k, largest_k=largest_k, 
-                                                                  dont_train=dont_train, n_inputs=self.n_inputs)
-                    models, step_sizes, mse_list, idx_lowest, n_forward_list = output
+                                                      self.val_dict[str(current_size)][:, :, i, j],
+                                                      self.val_dict[str(current_size)][:, :, i, j],
+                                                      current_size, model_dir=self.model_dir, make_new=make_new,
+                                                      i=i, j=j, start_k=start_k, largest_k=largest_k,
+                                                      dont_train=dont_train, n_inputs=self.n_inputs)
+                    models, _, mse_list, idx_lowest, _ = output
                     print("mse_list = ", mse_list)
                     loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], models[idx_lowest], tol=self.tol)
                     print("Error of added model is: ", loss)
@@ -158,11 +155,11 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
                     print("mse_each_model_list.append(loss) = ", mse_each_model_list)
                     idx_best_model = np.argmin(np.array(mse_each_model_list))
                     print("best model found was ", idx_best_model)
-                    
+
                     #if model that was just made if the best, add to list
                     if idx_best_model == len(self.model_keep):
                         self.model_keep.append(models[idx_lowest])
-                        
+
                     model_idx_list[i, j] = idx_best_model
     self.model_used_dict[str(current_size)] = model_idx_list
     if verbose:
@@ -177,11 +174,10 @@ def train_next_step(self, current_size, verbose=True, make_new=False, dont_train
     for i in range(current_size):
         for j in range(current_size):
             print("i = ", i, ": j = ", j)
-#             print(self.model_used_dict[str(current_size)][i][j])
             model = self.model_keep[int(self.model_used_dict[str(current_size)][i][j])]
             data_next = self.val_dict[str(current_size*2)][:, :, i*width:(i+1)*width, j*width:(j+1)*width]
             resolved, loss, unresolved_list = utils.find_error_4(self.val_dict[str(current_size)][:, :, i, j],
-                                            model, data_next, plot=verbose, tol=self.tol)
+                                                                 model, data_next, plot=verbose, tol=self.tol)
             unresolved_list_big[i*width:(i+1)*width, j*width:(j+1)*width] = unresolved_list
             loss_big[i*width:(i+1)*width, j*width:(j+1)*width] = loss
             if not resolved:
