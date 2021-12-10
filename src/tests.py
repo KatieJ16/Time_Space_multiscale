@@ -63,6 +63,8 @@ class Tests(unittest.TestCase):
         end_loss = loss_func(predict, self.model.outputs)
         self.assertTrue(end_loss < self.model.threshold)
 
+        #check that a model.pt file is made
+        self.assertTrue(os.path.exists('model.pt'))
 
     def test_predict_mse(self):
         #test that the prediction and mse work
