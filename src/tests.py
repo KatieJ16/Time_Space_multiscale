@@ -185,3 +185,10 @@ class Tests(unittest.TestCase):
         tc, resolved = training_class.train_next_step(tc, current_size,
                                                       verbose=False, make_new=True,
                                                       start_k=2, largest_k=3)
+#===============================================================================
+#clean up after all tests are run
+    @classmethod
+    def tearDownClass(cls):
+        os.remove('model.pt')
+        os.remove('train_data.npy')
+        os.remove('val_data.npy')
