@@ -35,6 +35,15 @@ class Tests(unittest.TestCase):
 
         np.save('train_data.npy', np.ones((1,1,4,4)))
         np.save('val_data.npy', np.ones((2,1,4,4)))
+        
+        if torch.cuda.is_available():
+            torch.cuda.set_per_process_memory_fraction(0.5, 0)
+            
+        cls.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("device = ", cls.device)
+        
+        cls.model.to(cls.device)
+    
 #===============================================================================
 #tests for ResNet
     def test_resnet_make(self):
@@ -49,7 +58,7 @@ class Tests(unittest.TestCase):
     def test_forward(self):
         #check that forward works and gets right shape
         n_points = 2
-        x = torch.ones((n_points, self.n_inputs))
+        x = torch.ones((n_points, self.n_inputs)).to(self.device)
         x_forward = self.model(x)
         self.assertTrue(x_forward.shape == (n_points, 1))
 
