@@ -11,7 +11,7 @@ class training_class():
         defining a class that will do all the training and stuff.
     """
 
-    def __init__(self, data_dir, model_dir, result_dir, tol, n_inputs=3):
+    def __init__(self, data_dir, model_dir, result_dir, train_threshold=1e-8, resolve_tol=1e-4, n_inputs=3):
 
         self.data_dir = data_dir
         self.model_dir = model_dir
@@ -27,7 +27,8 @@ class training_class():
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("device = ", self.device)
 
-        self.tol = tol
+        self.train_threshold = train_threshold
+        self.resolve_tol = resolve_tol
         self.n_inputs = n_inputs
 # ==================================================================================
 def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=True,
@@ -42,7 +43,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
                                       make_new=make_new, start_k=start_k,
                                       largest_k=largest_k,
                                       dont_train=dont_train,
-                                      n_inputs=self.n_inputs)
+                                      n_inputs=self.n_inputs, threshold=self.train_threshold)
     models, step_sizes, mse_list, idx_lowest, n_forward_list = output
     # print if verbose
     if verbose:
@@ -58,7 +59,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
 
     resolved, loss, unresolved_list = utils.find_error_4(self.val_dict[str(current_size)],
                                                          models[idx_lowest], self.val_dict[str(current_size*2)],
-                                                         plot=verbose, tol=self.tol)
+                                                         plot=verbose, tol=self.resolve_tol)
     if verbose:
         print("loss shape = ", loss.shape)
         print("loss = ", loss)
@@ -97,13 +98,14 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
     return self, resolved
 
 def train_next_step(self, current_size, verbose=True, make_new=False,
-                    dont_train=True, start_k=2, largest_k=3):
+                    dont_train=True, start_k=2, largest_k=3, plot_fit=False):
     """
         trains and does everything for 2nd iteration
     """
 
-    print("self.unresolved_dict[str(int(current_size/2))]= ", self.unresolved_dict[str(int(current_size/2))].is_cuda)
-    print("self.train_dict[str(current_size)] = ", self.train_dict[str(current_size)].is_cuda)
+    if verbose:
+        print("self.unresolved_dict[str(int(current_size/2))]= ", self.unresolved_dict[str(int(current_size/2))].is_cuda)
+        print("self.train_dict[str(current_size)] = ", self.train_dict[str(current_size)].is_cuda)
     train_data = self.unresolved_dict[str(int(current_size/2))] * self.train_dict[str(current_size)]
 
     model_idx_list = np.ones((current_size, current_size))*(-1) #start with all -1
@@ -127,7 +129,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
             #see if the error is low enough on already made model
                 mse_each_model_list = []
                 for m, model in enumerate(self.model_keep):
-                    loss, resolved = utils.find_error_1(data_this, model, tol=self.tol)
+                    loss, resolved = utils.find_error_1(data_this, model, tol=self.resolve_tol)
                     step_size = model.step_size
                     mse_each_model_list.append(loss)
                     if verbose:
@@ -149,7 +151,10 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                                                       dont_train=dont_train, n_inputs=self.n_inputs)
                     models, _, mse_list, idx_lowest, _ = output
                     print("mse_list = ", mse_list)
-                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], models[idx_lowest], tol=self.tol)
+                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], 
+                                                        models[idx_lowest], tol=self.resolve_tol, plot=plot_fit,# i=i, j=j,
+                                                        title="Error of fitting at i = " +str(i)+": j = "+str(j))
+                    
                     print("Error of added model is: ", loss)
                     mse_each_model_list.append(loss)
                     print("mse_each_model_list.append(loss) = ", mse_each_model_list)
@@ -175,9 +180,13 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
         for j in range(current_size):
             print("i = ", i, ": j = ", j)
             model = self.model_keep[int(self.model_used_dict[str(current_size)][i][j])]
-            data_next = self.val_dict[str(current_size*2)][:, :, i*width:(i+1)*width, j*width:(j+1)*width]
+            #use 1 more refinement to find error. If finest model, just compare to self
+            try:
+                data_next = self.val_dict[str(current_size*2)][:, :, i*width:(i+1)*width, j*width:(j+1)*width]
+            except: #when finest resolution
+                data_next = self.val_dict[str(current_size)][:, :, i, j]
             resolved, loss, unresolved_list = utils.find_error_4(self.val_dict[str(current_size)][:, :, i, j],
-                                                                 model, data_next, plot=verbose, tol=self.tol)
+                                                                 model, data_next, plot=verbose, tol=self.resolve_tol)
             unresolved_list_big[i*width:(i+1)*width, j*width:(j+1)*width] = unresolved_list
             loss_big[i*width:(i+1)*width, j*width:(j+1)*width] = loss
             if not resolved:

@@ -87,7 +87,7 @@ def make_dict_all_sizes(data, device='cpu', verbose=False):
 
     assert isPowerOfTwo(dim)
 
-    dic = {str(dim): data}
+    dic = {str(dim): data.to(device)}
 
     for i in range(int(np.log2(dim))):
         #decrease
@@ -171,7 +171,7 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
 
 def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0, largest_k=7,
                        dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
-                       lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-4,
+                       lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-8,
                        criterion=torch.nn.MSELoss(), model_dir="./models/toy2",
                        i=None, j=None, print_every=1000, n_inputs=3):
     """
@@ -297,9 +297,6 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
         data = data.unsqueeze(2).unsqueeze(3)
     assert len(data.shape) == 4
 
-    if verbose:
-        print("truth_data shape =", truth_data.shape)
-        print("data shape = ", data.shape)
     _, _, dim, _ = data.shape
     data = torch.flatten(data, 2, 3)
     y_preds, _ = model.predict_mse()
@@ -309,11 +306,6 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
 
     truth_with_step_size = truth_data[:, ::model.step_size]
 
-    if verbose:
-        print("truth_data shape = ", truth_data.shape)
-        print("y_preds shape =", y_preds.shape)
-        print("truth_with_step_size shape =", truth_with_step_size.shape)
-        print("truth_with_step_size[:, :-3] shape =", truth_with_step_size[:, :-3].shape)
     loss = mse(y_preds, truth_with_step_size)
     if plot:
         try:
@@ -324,8 +316,6 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
             truth_with_step_size = truth_with_step_size.cpu()
         except:
             pass
-        print("y_pred shape = ", y_preds.shape)
-        print("truth_with_step_size[:,3:] shape = ", truth_with_step_size[:, 3:].shape)
         plt.title("(0,0) ")
         plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 0], label="truth")
@@ -462,11 +452,18 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
 
     if plot:
         truth = model.val_data[:, ::model.step_size, i, j]#[:,3:]
-        plt.plot(truth[0], label="Truth")
+        try:
+            plt.plot(truth[0], label="Truth")
+        except:
+            plt.plot(truth[0].cpu(), label="Truth")
 
         print('mse = ', mse)
         plt.title(title + ", mse: "+str(mse))
-        plt.plot(y_preds[0], label="Predicted")
+        try:
+            plt.plot(y_preds[0], label="Predicted")
+        except:
+            plt.plot(y_preds[0].detach().numpy(), label="Predicted")
+        plt.legend()
         plt.show()
 
 

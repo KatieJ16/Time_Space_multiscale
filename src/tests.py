@@ -163,6 +163,11 @@ class Tests(unittest.TestCase):
             utils.find_error_1(torch.ones([1]), self.model)
             utils.find_error_1(torch.ones([1,2,3,4,5]), self.model)
 
+    def test_find_error_1_plotting(self):
+        data = torch.ones([10,100,1,1])
+        #check that plotting works
+        utils.find_error_1(data, self.model, plot=True)
+
     def test_make_and_load(self):
         train_dict, val_dict = utils.load_and_make_dict('.')
 
