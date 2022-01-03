@@ -150,7 +150,7 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
     except:
         print('create model {} ...'.format(model_path_this))
         model_time = tnet.ResNet(train_data, val_data, step_size,
-                                 model_name=model_path_this, n_inputs=n_inputs,
+                                 model_name=model_name, model_dir=model_dir, n_inputs=n_inputs,
                                  n_hidden_nodes=20, n_hidden_layers=5,
                                  activation=nn.ReLU(), n_epochs=max_epochs,
                                  threshold=threshold, print_every=print_every,
@@ -308,6 +308,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
 
     loss = mse(y_preds, truth_with_step_size)
     if plot:
+        plt.figure()
         try:
             y_preds = y_preds.cpu()
         except:
@@ -324,6 +325,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
         plt.legend()
         plt.show()
 
+        plt.figure()
         plt.title("(1,0) ")
         plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 0], label="truth")
@@ -332,6 +334,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
         plt.legend()
         plt.show()
 
+        plt.figure()
         plt.title("(0,1) ")
         plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 0, 1], label="truth")
@@ -340,6 +343,7 @@ def find_error_4(data, model, truth_data, tol=2e-2, plot=False, verbose=False):
         plt.legend()
         plt.show()
 
+        plt.figure()
         plt.title("(1,1)")
         plt.plot(y_preds[0, :].detach().numpy(), label="y_preds")
         plt.plot(truth_with_step_size[0, :, 1, 1], label="truth")
@@ -451,6 +455,7 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
     y_preds, mse = model.predict_mse(data)
 
     if plot:
+        plt.figure()
         truth = model.val_data[:, ::model.step_size, i, j]#[:,3:]
         try:
             plt.plot(truth[0], label="Truth")
@@ -466,9 +471,13 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
         plt.legend()
 
         if file_name is None:
-            file_name = model.model_name + "_" + str(model.step_size)"_fit_error.pdf"
-        plt.save(file_name)
-        plt.show()
+            file_name = model.model_name + "_" + str(model.step_size) + "_fit_error.pdf"
+        plt.savefig(file_name)
+        print("file saved to ", file_name)
+        try:
+            plt.show()
+        except:
+            print("couldn't plot")
 
 
     return mse, mse <= tol

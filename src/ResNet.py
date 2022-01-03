@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +14,8 @@ print("using new ResNet thing")
 
 class ResNet(torch.nn.Module):
     def __init__(self, train_data, val_data, step_size=1, out_dim=1,
-                 n_hidden_nodes=20, n_hidden_layers=5, model_name="model.pt",
+                 n_hidden_nodes=20, n_hidden_layers=5, 
+                 model_name="model.pt", model_dir="../model",
                  activation=nn.ReLU(), n_epochs=500000, threshold=1e-8,
                  n_inputs=3, print_every=1000, save_every=100):
 
@@ -22,6 +24,7 @@ class ResNet(torch.nn.Module):
 
         self.step_size = step_size
         self.model_name = model_name
+        self.model_path = os.path.join(model_dir, model_name)
         self.n_inputs = n_inputs
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -95,7 +98,7 @@ class ResNet(torch.nn.Module):
                     if val_loss < min_val_loss:
                         no_improve = 0
                         min_val_loss = val_loss
-                        torch.save(self, self.model_name)
+                        torch.save(self, self.model_path)
                         if val_loss < self.threshold:
                             print("Threshold of ", self.threshold, "met. Stop training")
                             return
