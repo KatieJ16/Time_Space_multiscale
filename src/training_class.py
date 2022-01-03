@@ -24,15 +24,12 @@ class training_class():
         else:
             self.device = device
         print("device = ", self.device)
-        
+
         self.train_dict, self.val_dict = utils.load_and_make_dict(data_dir, device=self.device)
 
         self.unresolved_dict = {}
         self.model_keep = list()
         self.model_used_dict = {}
-
-            
-       
 
         self.train_threshold = train_threshold
         self.resolve_tol = resolve_tol
@@ -105,7 +102,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
     return self, resolved
 # ==================================================================================
 def train_next_step(self, current_size, verbose=True, make_new=False,
-                    dont_train=True, start_k=2, largest_k=3, plot_fit=False):
+                    dont_train=True, start_k=2, largest_k=3, plot_fit=False, result_dir='../result/'):
     """
         trains and does everything for 2nd iteration
     """
@@ -160,14 +157,16 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                                                       dont_train=dont_train, n_inputs=self.n_inputs)
                     models, _, mse_list, idx_lowest, _ = output
                     print("mse_list = ", mse_list)
-                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j], 
+                    file_name = models[idx_lowest].model_name+"_fitting_error_i"+str(i)+"_j"+str(j)".pdf"
+                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j],
                                                         models[idx_lowest], tol=self.resolve_tol, plot=plot_fit,# i=i, j=j,
-                                                        title="Error of fitting at i = " +str(i)+": j = "+str(j))
-                    
+                                                        title="Error of fitting at i = " +str(i)+": j = "+str(j),
+                                                        file_name=os.path.join(result_dir, file_name))
+
                     print("Error of added model is: ", loss)
                     mse_each_model_list.append(loss)
                     print("mse_each_model_list.append(loss) = ", mse_each_model_list)
-                    
+
                     idx_best_model = np.argmin(np.array(mse_each_model_list))
                     loss_small[i, j] = mse_each_model_list[idx_best_model]
                     print("best model found was ", idx_best_model)
@@ -175,8 +174,16 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                     #if model that was just made if the best, add to list
                     if idx_best_model == len(self.model_keep):
                         self.model_keep.append(models[idx_lowest])
+                    else: #plot a graph with the best model
+                    file_name = self.model_keep[idx_best_model].model_name+"_fitting_error_i"+str(i)+"_j"+str(j)"_actual_best.pdf"
+                    loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j],
+                                                        self.model_keep[idx_best_model], tol=self.resolve_tol, plot=plot_fit,# i=i, j=j,
+                                                        title="Error of fitting at i = " +str(i)+": j = "+str(j),
+                                                        file_name=os.path.join(result_dir, file_name))
 
                     model_idx_list[i, j] = idx_best_model
+
+
     self.model_used_dict[str(current_size)] = model_idx_list
     if verbose:
         print("self.model_used_dict[str(current_size)] = ", self.model_used_dict[str(current_size)])
@@ -217,7 +224,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
         plt.colorbar()
         plt.title("log loss at size " + str(current_size))
         plt.show()
-        
+
         print("loss_big = ", loss_big)
         plt.figure()
         try:
@@ -227,8 +234,8 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
         plt.colorbar()
         plt.title("log loss of refinement at size " + str(current_size))
         plt.show()
-        
-        
+
+
     self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list_big).to(self.device)
     if verbose:
         print("unresolved_dict = ", self.unresolved_dict)

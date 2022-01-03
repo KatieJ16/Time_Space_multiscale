@@ -171,7 +171,7 @@ def train_one_timestep(step_size, train_data, val_data=None, test_data=None, cur
 
 def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0, largest_k=7,
                        dt=1, n_forward=5, noise=0, make_new=False, dont_train=True,
-                       lr=1e-3, max_epochs=10000, batch_size=50, threshold=1e-8,
+                       lr=1e-3, max_epochs=100000, batch_size=50, threshold=1e-8,
                        criterion=torch.nn.MSELoss(), model_dir="./models/toy2",
                        i=None, j=None, print_every=1000, n_inputs=3):
     """
@@ -426,7 +426,7 @@ def grow(data, dim_full=128):
             data_full[:, :, i*divide:(i+1)*divide, j*divide:(j+1)*divide] = repeated
     return data_full
 #====================================================================================
-def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_1"):
+def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_1", file_name=None):
     """
     Find error over the 1 square
 
@@ -464,6 +464,10 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
         except:
             plt.plot(y_preds[0].detach().numpy(), label="Predicted")
         plt.legend()
+
+        if file_name is None:
+            file_name = model.model_name + "_" + str(model.step_size)"_fit_error.pdf"
+        plt.save(file_name)
         plt.show()
 
 
