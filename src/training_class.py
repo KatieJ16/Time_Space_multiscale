@@ -11,21 +11,28 @@ class training_class():
         defining a class that will do all the training and stuff.
     """
 
-    def __init__(self, data_dir, model_dir, result_dir, train_threshold=1e-8, resolve_tol=1e-4, n_inputs=3):
+    def __init__(self, data_dir, model_dir, result_dir, train_threshold=1e-8, resolve_tol=1e-4, n_inputs=3, device=None):
 
         self.data_dir = data_dir
         self.model_dir = model_dir
         self.result_dir = result_dir
 
-        self.train_dict, self.val_dict = utils.load_and_make_dict(data_dir)
+        print("given device = ", device)
+        if device is None:
+            print("None")
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = device
+        print("device = ", self.device)
+        
+        self.train_dict, self.val_dict = utils.load_and_make_dict(data_dir, device=self.device)
 
         self.unresolved_dict = {}
         self.model_keep = list()
         self.model_used_dict = {}
 
-
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        print("device = ", self.device)
+            
+       
 
         self.train_threshold = train_threshold
         self.resolve_tol = resolve_tol
@@ -66,8 +73,8 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
 
         #plot the errors
         plt.figure()
-        plt.imshow(np.log10(loss))
-        plt.title("log loss at size " + str(current_size))
+        plt.imshow(np.log10(loss), cmap='Greys')
+        plt.title("log loss of refinement at size " + str(current_size))
         plt.colorbar()
         plt.show()
 
@@ -96,7 +103,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         print("number of models kept = ", len(self.model_keep))
 
     return self, resolved
-
+# ==================================================================================
 def train_next_step(self, current_size, verbose=True, make_new=False,
                     dont_train=True, start_k=2, largest_k=3, plot_fit=False):
     """
@@ -110,6 +117,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
 
     model_idx_list = np.ones((current_size, current_size))*(-1) #start with all -1
 
+    loss_small = np.ones((current_size, current_size))*(-1)
     for i in range(current_size):
         for j in range(current_size):
             if verbose:
@@ -136,6 +144,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                         print("model ", m, " has loss = ", loss)
                     if resolved:
                         model_idx_list[i, j] = m
+                        loss_small[i,j] = loss
                         print("Resolved with loss = ", loss, ": model #", m)
                         break
 
@@ -158,7 +167,9 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                     print("Error of added model is: ", loss)
                     mse_each_model_list.append(loss)
                     print("mse_each_model_list.append(loss) = ", mse_each_model_list)
+                    
                     idx_best_model = np.argmin(np.array(mse_each_model_list))
+                    loss_small[i, j] = mse_each_model_list[idx_best_model]
                     print("best model found was ", idx_best_model)
 
                     #if model that was just made if the best, add to list
@@ -197,6 +208,16 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
     if verbose:
         print("all_resolved = ", all_resolved)
         print("unresolved_list_big = ", unresolved_list_big)
+        print("loss_small = ", loss_small)
+        plt.figure()
+        try:
+            plt.imshow(np.log10(loss_small).cpu(), cmap='Greys')
+        except:
+            plt.imshow(np.log10(loss_small), cmap='Greys')
+        plt.colorbar()
+        plt.title("log loss at size " + str(current_size))
+        plt.show()
+        
         print("loss_big = ", loss_big)
         plt.figure()
         try:
@@ -204,8 +225,10 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
         except:
             plt.imshow(np.log10(loss_big), cmap='Greys')
         plt.colorbar()
-        plt.title("log(loss)")
+        plt.title("log loss of refinement at size " + str(current_size))
         plt.show()
+        
+        
     self.unresolved_dict[str(current_size)] = torch.tensor(unresolved_list_big).to(self.device)
     if verbose:
         print("unresolved_dict = ", self.unresolved_dict)

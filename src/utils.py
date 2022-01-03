@@ -87,7 +87,7 @@ def make_dict_all_sizes(data, device='cpu', verbose=False):
 
     assert isPowerOfTwo(dim)
 
-    dic = {str(dim): data.to(device)}
+    dic = {str(dim): data}#.to(device)}
 
     for i in range(int(np.log2(dim))):
         #decrease
@@ -469,10 +469,10 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
 
     return mse, mse <= tol
 #====================================================================================
-def load_and_make_dict(data_dir, have_test=False):
+def load_and_make_dict(data_dir, have_test=False, device='cpu'):
     """load data and make dictionary with all levels"""
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print("device = ", device)
     #load data
     train_data = torch.tensor(np.load(os.path.join(data_dir, 'train_data.npy')))
