@@ -57,7 +57,8 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         print("mse = ", mse_list)
         if plot_all_timesteps:
             for i in range(len(models)):
-                utils.plot_lowest_error(models[i], i=0, title="step_size = " +str(step_sizes[i]))
+                file_name = os.path.join(self.result_dir, models[i].model_name+"_fitting_error_1_D"+str(step_sizes[i])+".pdf")
+                utils.plot_lowest_error(models[i], i=0, title="step_size = " +str(step_sizes[i]), file_name=file_name)
         else:
             utils.plot_lowest_error(models[idx_lowest], i=0, title="step_size = " +str(step_sizes[idx_lowest]))
 

@@ -249,7 +249,7 @@ def find_best_timestep(train_data, val_data, test_data, current_size, start_k=0,
     return models, step_sizes, mse_list, idx_lowest, n_forward_list
 #====================================================================================
 #====================================================================================
-def plot_lowest_error(model, i=0, title=None):
+def plot_lowest_error(model, i=0, title=None, file_name=None):
     """
     Plot data at model, idx
 
@@ -274,6 +274,9 @@ def plot_lowest_error(model, i=0, title=None):
     plt.legend()
     if title is not None:
         plt.title(title+": mse = "+str(mse))
+        
+    if file_name is not None:
+        plt.savefig(file_name)
 
     plt.show()
 #====================================================================================
