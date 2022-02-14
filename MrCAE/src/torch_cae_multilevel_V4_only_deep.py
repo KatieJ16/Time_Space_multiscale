@@ -49,8 +49,10 @@ class Conv2dBlock(torch.nn.Module):
         h = x
         for i in range(self.num_of_blocks):
             h = self._modules['B{}'.format(i)](h)
+#             print('B{}'.format(i))
             if self.is_widen and self.mode == 'conv':
                 h = self.activation(h)
+#                 print("with activation")
 
         return h
 
@@ -113,6 +115,9 @@ class CAE(torch.nn.Module):
         self.blocks = n_blocks
         self.use_maps = use_maps
 
+        if use_maps:
+            print("using maps")
+
         # device
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -122,6 +127,7 @@ class CAE(torch.nn.Module):
         self.n_filters_each_level = dict()
         self.n_filter_groups_each_level = dict()
         self.resolved_maps = dict()
+        self.loss_each_stage = dict()
         self.n_params = list()
 
         for i in range(n_levels):
@@ -129,12 +135,13 @@ class CAE(torch.nn.Module):
             self.filter_channels_each_level[str(i)] = []
             self.n_filter_groups_each_level[str(i)] = 0
             self.resolved_maps[str(i)] = dict()
+            self.loss_each_stage[str(i)] = dict()
             self.level_clear[str(i)] = False
 
         # layer
         self.activation = activation
 
-    def forward(self, x, level, query_in_out_each_level=False, query_hidden=False):
+    def forward(self, x, level, query_in_out_each_level=False, query_hidden=False, verbose = False):
         """
         :param x: a 4D input of NN
         :param level: level index
@@ -151,38 +158,60 @@ class CAE(torch.nn.Module):
         # forward prop
         assert level >= 0, print('level index should be a non-negative integer!')
         resolved_maps_dict = self.resolved_maps[str(level)]
-
-        # print("level = ", level)
-        # print("x shape = ", x.shape)
         if level == 0:
             if query_in_out_each_level:
                 all_inputs['0'] = x
             encoded = self._modules['L0_Conv_0'](x)
+            if verbose:
+                print('L0_Conv_0')
             if query_hidden:
                 all_hidden['L0_0'] = encoded
             # ----- pad -----
             encoded = torch.nn.functional.pad(encoded, (1, 1, 1, 1), 'replicate')
+            if verbose:
+                print('pad')
             # ---------------
             y = self._modules['L0_deConv_0'](encoded)
+            if verbose:
+                print('L0_deConv_0')
             # chop off the boundaries
             y = y[:, :, 2:-2, 2:-2]
+            if verbose:
+                print('chop')
+                print("self.n_filter_groups_each_level = ", self.n_filter_groups_each_level['0'])
             for i in range(1, self.n_filter_groups_each_level['0']):
+
                 encoded = self._modules['L0_Conv_{}'.format(i)](x)
+                if verbose:
+                    print('L0_Conv_{}'.format(i))
+                    print("encoded shape = ", encoded.shape)
+                    print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                # print("encoded shape = ", encoded.shape)
+                # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
                 if self.use_maps:
                     masked_encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
                 else:
                     masked_encoded = encoded
+                    if verbose:
+                        print('apply map')
                 if query_hidden:
                     all_hidden['L0_{}'.format(i)] = masked_encoded
                 y += self._modules['L0_deConv_{}'.format(i)](masked_encoded)
+                if verbose:
+                    print('L0_deConv_{}'.format(i))
             if query_in_out_each_level:
                 all_outputs['0'] = y
         else:
             encoded = self._modules['L{}_Conv_0'.format(level)](x)
+            if verbose:
+                print('L{}_Conv_0'.format(level))
+                print("begin recursive")
             decoded, ins, outs, hs = \
-                self.forward(encoded, level-1, query_in_out_each_level, query_hidden)
+                self.forward(encoded, level-1, query_in_out_each_level, query_hidden, verbose=verbose)
             # ----- pad -----
             decoded = torch.nn.functional.pad(decoded, (1, 1, 1, 1), 'replicate')
+            if verbose:
+                print('pad')
             # ---------------
             if query_in_out_each_level:
                 all_inputs[str(level)] = x
@@ -192,50 +221,34 @@ class CAE(torch.nn.Module):
                 all_hidden.update(hs)
                 all_hidden['L{}_0'.format(level)] = encoded
             y = self._modules['L{}_deConv_0'.format(level)](decoded)
+            if verbose:
+                print('L{}_deConv_0'.format(level))
             y = y[:, :, 2:-2, 2:-2]
+            if verbose:
+                print("chop")
             for i in range(1, self.n_filter_groups_each_level[str(level)]):
                 encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
+                if verbose:
+                    print('L{}_Conv_{}'.format(level, i))
                 if self.use_maps:
+                    # print("encoded shape = ", encoded.shape)
+                    # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
                     masked_encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
                 else:
                     masked_encoded = encoded
+                if verbose:
+                    print('apply mask')
                 if query_hidden:
                     all_hidden['L{}_{}'.format(level, i)] = masked_encoded
                 y += self._modules['L{}_deConv_{}'.format(level, i)](masked_encoded)
+                if verbose:
+                    print('L{}_deConv_{}'.format(level, i))
             if query_in_out_each_level:
                 all_outputs[str(level)] = y
 
         return y, all_inputs, all_outputs, all_hidden
 
-    def encode(self, x, level, query_in_out_each_level=False, query_hidden=False):
-        """
-        :param x: a 4D input of NN
-        :param level: level index
-        :param query_in_out_each_level: if to query the input/output at each level
-        (maybe used for enforce losses at different levels)
-        :param query_hidden: if to query hidden representations
-        :return: output of NN, a list of hidden representations at current level
-        """
-        # # collectors
-        # all_hidden = dict()
-        # all_inputs = dict()
-        # all_outputs = dict()
-
-        # forward prop
-        assert level >= 0, print('level index should be a non-negative integer!')
-        # resolved_maps_dict = self.resolved_maps[str(level)]
-
-        print("level = ", level)
-        print("x shape = ", x.shape)
-        if level == 0:
-            encoded = self._modules['L0_Conv_0'](x)
-
-            return encoded
-        else:
-            encoded = self._modules['L{}_Conv_0'.format(level)](x)
-            return encoded
-
-    def decode(self, encoded, level, query_in_out_each_level=False, query_hidden=False):
+    def encode(self, x, level):#, query_in_out_each_level=False, query_hidden=False):
         """
         :param x: a 4D input of NN
         :param level: level index
@@ -245,48 +258,147 @@ class CAE(torch.nn.Module):
         :return: output of NN, a list of hidden representations at current level
         """
         # collectors
-        all_hidden = dict()
-        all_inputs = dict()
-        all_outputs = dict()
+        # all_hidden = dict()
+        # all_inputs = dict()
+        # all_outputs = dict()
 
         # forward prop
         assert level >= 0, print('level index should be a non-negative integer!')
         resolved_maps_dict = self.resolved_maps[str(level)]
-
-        print("level = ", level)
         if level == 0:
-            encoded = torch.nn.functional.pad(encoded, (1, 1, 1, 1), 'replicate')
+            # if query_in_out_each_level:
+            #     all_inputs['0'] = x
+            encoded = self._modules['L0_Conv_0'](x)
+            # if query_hidden:
+            #     all_hidden['L0_0'] = encoded
+            # ----- pad -----
+            # encoded = torch.nn.functional.pad(encoded, (1, 1, 1, 1), 'replicate')
+            # ---------------
+            # y = self._modules['L0_deConv_0'](encoded)
+            # chop off the boundaries
+            # y = y[:, :, 2:-2, 2:-2]
+            for i in range(1, self.n_filter_groups_each_level['0']):
+                encoded = self._modules['L0_Conv_{}'.format(i)](x)
+                # print("encoded shape = ", encoded.shape)
+                # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                # ghjk
+                if self.use_maps:
+                    encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
+                # else:
+                #     masked_encoded = encoded
+                # if query_hidden:
+                #     all_hidden['L0_{}'.format(i)] = masked_encoded
+                # y += self._modules['L0_deConv_{}'.format(i)](masked_encoded)
+        #     if query_in_out_each_level:
+        #         all_outputs['0'] = y
+        else:
+            encoded = self._modules['L{}_Conv_0'.format(level)](x)
+            encoded= self.forward(encoded, level-1)#, query_in_out_each_level, query_hidden)
+            # decoded, ins, outs, hs = \
+            #     self.forward(encoded, level-1, query_in_out_each_level, query_hidden)
+            # # ----- pad -----
+            # decoded = torch.nn.functional.pad(decoded, (1, 1, 1, 1), 'replicate')
+            # ---------------
+            # if query_in_out_each_level:
+            #     all_inputs[str(level)] = x
+            #     all_inputs.update(ins)
+            #     all_outputs.update(outs)
+            # if query_hidden:
+            #     all_hidden.update(hs)
+            #     all_hidden['L{}_0'.format(level)] = encoded
+            # y = self._modules['L{}_deConv_0'.format(level)](decoded)
+            # y = y[:, :, 2:-2, 2:-2]
+            for i in range(1, self.n_filter_groups_each_level[str(level)]):
+                encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
+                if self.use_maps:
+                    # print("encoded shape = ", encoded.shape)
+                    # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                    #
+                    # hjk
+                    encoded = apply_mask(encoded, resolved_maps_dict[str(i - 1)])
+                # else:
+                #     masked_encoded = encoded
+                # if query_hidden:
+                #     all_hidden['L{}_{}'.format(level, i)] = masked_encoded
+                # y += self._modules['L{}_deConv_{}'.format(level, i)](masked_encoded)
+            # if query_in_out_each_level:
+            #     all_outputs[str(level)] = y
+
+        return encoded#, y, all_inputs, all_outputs, all_hidden
+
+    def decode(self, x, level):#, query_in_out_each_level=False, query_hidden=False):
+        """
+        :param x: a 4D input of NN
+        :param level: level index
+        :param query_in_out_each_level: if to query the input/output at each level
+        (maybe used for enforce losses at different levels)
+        :param query_hidden: if to query hidden representations
+        :return: output of NN, a list of hidden representations at current level
+        """
+        # collectors
+        # all_hidden = dict()
+        # all_inputs = dict()
+        # all_outputs = dict()
+
+        # forward prop
+        assert level >= 0, print('level index should be a non-negative integer!')
+        resolved_maps_dict = self.resolved_maps[str(level)]
+        if level == 0:
+            # if query_in_out_each_level:
+            #     all_inputs['0'] = x
+            # encoded = self._modules['L0_Conv_0'](x)
+            # if query_hidden:
+            #     all_hidden['L0_0'] = encoded
+            # ----- pad -----
+            encoded = torch.nn.functional.pad(x, (1, 1, 1, 1), 'replicate')
             # ---------------
             y = self._modules['L0_deConv_0'](encoded)
             # chop off the boundaries
             y = y[:, :, 2:-2, 2:-2]
-
-            return y
+            for i in range(1, self.n_filter_groups_each_level['0']):
+                # encoded = self._modules['L0_Conv_{}'.format(i)](x)
+                # print("encoded shape = ", encoded.shape)
+                # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                if self.use_maps:
+                    masked_encoded = apply_mask(x, resolved_maps_dict[str(i - 1)])
+                else:
+                    masked_encoded = x
+                # if query_hidden:
+                #     all_hidden['L0_{}'.format(i)] = masked_encoded
+                y += self._modules['L0_deConv_{}'.format(i)](masked_encoded)
+            # if query_in_out_each_level:
+            #     all_outputs['0'] = y
         else:
+            # encoded = self._modules['L{}_Conv_0'.format(level)](x)
             decoded, ins, outs, hs = \
-                self.forward(encoded, level-1, query_in_out_each_level, query_hidden)
+                self.decode(x, level-1, query_in_out_each_level, query_hidden)
             # ----- pad -----
             decoded = torch.nn.functional.pad(decoded, (1, 1, 1, 1), 'replicate')
             # ---------------
+            # if query_in_out_each_level:
+            #     all_inputs[str(level)] = x
+            #     all_inputs.update(ins)
+            #     all_outputs.update(outs)
+            # if query_hidden:
+            #     all_hidden.update(hs)
+            #     all_hidden['L{}_0'.format(level)] = encoded
             y = self._modules['L{}_deConv_0'.format(level)](decoded)
             y = y[:, :, 2:-2, 2:-2]
-            return y
+            for i in range(1, self.n_filter_groups_each_level[str(level)]):
+                # encoded = self._modules['L{}_Conv_{}'.format(level, i)](x)
+                if self.use_maps:
+                    # print("encoded shape = ", encoded.shape)
+                    # print("resolved_maps_dict[str(i - 1)] shape = ", resolved_maps_dict[str(i - 1)].shape)
+                    masked_encoded = apply_mask(x, resolved_maps_dict[str(i - 1)])
+                else:
+                    masked_encoded = x
+                # if query_hidden:
+                #     all_hidden['L{}_{}'.format(level, i)] = masked_encoded
+                y += self._modules['L{}_deConv_{}'.format(level, i)](masked_encoded)
+            # if query_in_out_each_level:
+            #     all_outputs[str(level)] = y
 
-    def predict_in_middle(self, x, level):
-        """predicted in the middle of the autoencoder"""
-        encoded = self.encode(x, level)
-        print("encoded.shape = ", encoded.shape)
-
-        #for now we just add a tiny bit of noise. #std is 1% of value
-        encoded = encoded + torch.normal(torch.zeros_like(encoded), torch.abs(encoded)*0.01 )
-        #and shift by 1
-        encoded = encoded[1:]
-        #this is where we will add the time nn
-
-        decoded = self.decode(encoded, level)
-
-        return decoded
-
+        return y#, all_inputs, all_outputs, all_hidden
 
     def deeper_op(self, std=0.02):
         """
@@ -331,6 +443,9 @@ class CAE(torch.nn.Module):
             self.add_module('L{}_Conv_{}'.format(self.cur_level, filter_index),
                             Conv2dBlock(n_blocks, n_filters, mode='conv', activation=self.activation,
                                         is_widen=True, std=std))
+            print('adding L{}_Conv_{}'.format(self.cur_level, filter_index))
+            print('n_blocks = ', n_blocks, ': n_filters = ', n_filters)
+
             self.add_module('L{}_deConv_{}'.format(self.cur_level, filter_index),
                             Conv2dBlock(1, n_filters, mode='deconv', activation=self.activation,
                                         is_widen=True, std=std))
@@ -411,7 +526,8 @@ class CAE(torch.nn.Module):
                 print('[training set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_train.item(), max_loss_train.item(), loss.item(), global_mean_loss.item(), global_max_loss.item(), global_loss.item()))
                 print('[validation set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_val.item(), max_loss_val.item(), loss_val.item(), global_mean_val_loss.item(), global_max_val_loss.item(), global_val_loss.item()))
             # every 1/10 max_epoch
-            if epoch % (max_epoch // 10) == 0:
+
+            if epoch % (max_epoch // 1) == 0 and verbose >0:
                 print('epoch [{}/{}]:'.format(epoch, max_epoch))
                 print('[training set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_train.item(), max_loss_train.item(), loss.item(), global_mean_loss.item(), global_max_loss.item(), global_loss.item()))
                 print('[validation set] local: {:.4f}/{:.4f}/{:.4f}, global: {:.4f}/{:.4f}/{:.4f}'.format(mean_loss_val.item(), max_loss_val.item(), loss_val.item(), global_mean_val_loss.item(), global_max_val_loss.item(), global_val_loss.item()))
@@ -441,8 +557,11 @@ class CAE(torch.nn.Module):
         filter_index = self.n_filter_groups_each_level[str(self.cur_level)] - 1
         train_output, _, _, _ = self.forward(train_data, self.cur_level)
         if tol is not None:
-            _, _, resolved_map = check_pixel_level_loss(train_data, train_output, tol=tol, device=self.device, w=0.5)
+            #get points that have an error less than tol
+            _, loss, resolved_map = check_pixel_level_loss(train_data, train_output, tol=tol, device=self.device, w=0.5)
+            #add to dictionary of maps
             self.resolved_maps[str(self.cur_level)][str(filter_index)] = resolved_map.float()
+            self.loss_each_stage[str(self.cur_level)][str(filter_index)] = loss
             if resolved_map.all():
                 self.level_clear[str(self.cur_level)] = True
 
@@ -520,6 +639,8 @@ def train_net(archs, dataset, max_epoch, batch_size, result_path,
 
     # training
     for i in range(n_levels):
+        print("level = ", i)
+        print("archs[i] = ", archs[i])
         model = train_net_one_level(arch=archs[i], dataset=dataset, max_epoch=max_epoch,
                                     batch_size=batch_size, result_path=result_path,
                                     model_path=model_path, load_model=model, tol=tols[i],
@@ -566,8 +687,11 @@ def train_net_one_level(arch, dataset, max_epoch, batch_size, result_path,
     model = load_model
     widen_sizes = [arch[k+1] - arch[k] for k in range(len(arch)-1)]
 
+    print("widen_sizes = ", widen_sizes)
+
     # training
     # perform a deepening operation
+    print("deepening")
     model = train_net_one_stage(mode=1, n_filters=1, dataset=dataset, max_epoch=max_epoch,
                                 batch_size=batch_size, result_path=result_path, tol=tol,
                                 load_model=model, activation=activation, lr=lr, w=w, std=std,

@@ -3,12 +3,10 @@ import torch
 
 
 class MultiScaleDynamicsDataSet():
-    def __init__(self, data_path, n_levels, map_path=None, train_ratio=0.7, valid_ratio=0.2, shuffle=True):
+    def __init__(self, data_path, n_levels, map_path=None, train_ratio=0.7, valid_ratio=0.2):
         # load data
         data = np.load(data_path)
         self.data = torch.tensor(data).unsqueeze(1).float()
-#         print("self.data.shape = ", self.data.shape)
-
         #
         if map_path is not None:
             map_data = 1 - np.load(map_path)
@@ -19,8 +17,7 @@ class MultiScaleDynamicsDataSet():
         self.nt, self.nx, self.ny = data.shape
         # partition
         indices = np.arange(self.nt)
-        if shuffle:
-            np.random.shuffle(indices)
+        np.random.shuffle(indices)
         n_train = int(train_ratio*self.nt)
         n_val = int(valid_ratio*self.nt)
         self.n_train = n_train
@@ -36,27 +33,15 @@ class MultiScaleDynamicsDataSet():
 
     def obtain_data_at_current_level(self, level):
         train_data = self.data[self.train_inds].to(self.device)
-
-#         print("train_data shape = ", train_data.shape)
-
         val_data = self.data[self.val_inds].to(self.device)
         test_data = self.data[self.test_inds].to(self.device)
 
-        # print("self.n_levels = ", self.n_levels)
-        # print("level = ", level)
-        # print("self.n_levels - level - 1 =", self.n_levels - level - 1)
-
-        # print("train_data shape = ", train_data.shape)
-        for i in range(self.n_levels - level - 1):
+        for _ in range(self.n_levels - level - 1):
             train_data = apply_local_op(train_data, self.device, ave=False)
-            # print("i = ", i)
-            # print("train_data shape = ", train_data.shape)
             val_data = apply_local_op(val_data, self.device, ave=False)
             test_data = apply_local_op(test_data, self.device, ave=False)
 
         return train_data, val_data, test_data
-
-
 
 
 def apply_local_op(data, device, mode='conv', ave=True):
@@ -135,7 +120,6 @@ def apply_mask(data, mask, mask_type='resolved', width=1):
     # convert to unresolved mask
     if mask_type == 'resolved':
         mask = 1 - mask
-        # print(mask)
     elif mask_type == 'unresolved':
         mask = mask
     else:
@@ -153,8 +137,6 @@ def apply_mask(data, mask, mask_type='resolved', width=1):
                     mask[x + dx[i], y + dy[j]] = 1
 
     # apply
-#     print("data shape = ", data.shape)
-#     print("mask.unsqueeze(0).unsqueeze(0).float() shape = ", mask.unsqueeze(0).unsqueeze(0).float().shape)
     masked_data = data * mask.unsqueeze(0).unsqueeze(0).float()
     return masked_data
 
