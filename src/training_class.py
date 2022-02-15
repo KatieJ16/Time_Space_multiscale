@@ -57,7 +57,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         print("mse = ", mse_list)
         if plot_all_timesteps:
             for i in range(len(models)):
-                file_name = os.path.join(self.result_dir, models[i].model_name+"_fitting_error_1_D"+str(step_sizes[i])+".pdf")
+                file_name = os.path.join(self.result_dir, models[i].model_name+"_fitting_error_1_D"+str(step_sizes[i])+".png")
                 utils.plot_lowest_error(models[i], i=0, title="step_size = " +str(step_sizes[i]), file_name=file_name)
         else:
             utils.plot_lowest_error(models[idx_lowest], i=0, title="step_size = " +str(step_sizes[idx_lowest]))
@@ -76,7 +76,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         plt.imshow(np.log10(loss), cmap='Greys')
         plt.title("log loss of refinement at size " + str(current_size))
         plt.colorbar()
-        plt.savefig(os.path.join(self.result_dir, "log_loss_refinement_size_"+str(current_size)+".pdf"))
+        plt.savefig(os.path.join(self.result_dir, "log_loss_refinement_size_"+str(current_size)+".png"))
         try:
             plt.show()
         except:
@@ -98,7 +98,7 @@ def train_one_step(self, current_size, make_new=False, dont_train=True, verbose=
         plt.imshow(next_train_data[0, 0].cpu())
         plt.colorbar()
         plt.title("Next data going to size "+ str(current_size*2))
-        plt.savefig(os.path.join(self.result_dir,"data_going_to_size_"+str(current_size)+".pdf"))
+        plt.savefig(os.path.join(self.result_dir,"data_going_to_size_"+str(current_size)+".png"))
         try:
             plt.show()
         except:
@@ -170,7 +170,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                                                       dont_train=dont_train, n_inputs=self.n_inputs)
                     models, _, mse_list, idx_lowest, _ = output
                     print("mse_list = ", mse_list)
-                    file_name = models[idx_lowest].model_name+"_fitting_error_i"+str(i)+"_j"+str(j)+".pdf"
+                    file_name = models[idx_lowest].model_name+"_fitting_error_i"+str(i)+"_j"+str(j)+".png"
                     loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j],
                                                         models[idx_lowest], tol=self.resolve_tol, plot=plot_fit,# i=i, j=j,
                                                         title="Error of fitting at i = " +str(i)+": j = "+str(j),
@@ -188,7 +188,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                     if idx_best_model == len(self.model_keep):
                         self.model_keep.append(models[idx_lowest])
                     else: #plot a graph with the best model
-                        file_name = self.model_keep[idx_best_model].model_name+"_fitting_error_i"+str(i)+"_j"+str(j)+"_actual_best.pdf"
+                        file_name = self.model_keep[idx_best_model].model_name+"_fitting_error_i"+str(i)+"_j"+str(j)+"_actual_best.png"
                         loss, resolved = utils.find_error_1(self.val_dict[str(current_size)][:, :, i, j],
                                                             self.model_keep[idx_best_model], tol=self.resolve_tol, plot=plot_fit,# i=i, j=j,
                                                             title="Error of fitting at i = " +str(i)+": j = "+str(j),
@@ -236,7 +236,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
             plt.imshow(np.log10(loss_small), cmap='Greys')
         plt.colorbar()
         plt.title("log loss at size " + str(current_size))
-        plt.savefig(os.path.join(self.result_dir,"log_loss_size_"+str(current_size)+".pdf"))
+        plt.savefig(os.path.join(self.result_dir,"log_loss_size_"+str(current_size)+".png"))
         try:
             plt.show()
         except:
@@ -250,7 +250,7 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
             plt.imshow(np.log10(loss_big), cmap='Greys')
         plt.colorbar()
         plt.title("log loss of refinement at size " + str(current_size))
-        plt.savefig(os.path.join(self.result_dir,"log_loss_refinement_size_"+str(current_size)+".pdf"))
+        plt.savefig(os.path.join(self.result_dir,"log_loss_refinement_size_"+str(current_size)+".png"))
         try:
             plt.show()
         except:

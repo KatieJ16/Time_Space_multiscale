@@ -67,7 +67,7 @@ def ave_one_level(data, device='cpu', verbose=False):
 
 #====================================================================================
 
-def make_dict_all_sizes(data, device='cpu', verbose=False):
+def make_dict_all_sizes(data, device='cpu', verbose=True):
     """
     Makes a dictionary of data at every refinedment size from current->1
 
@@ -459,7 +459,8 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
 
     if plot:
         plt.figure()
-        truth = model.val_data[:, ::model.step_size, i, j]#[:,3:]
+        truth = data[:,:,i,j]
+#         truth = model.val_data[:, ::model.step_size, i, j]#[:,3:]
         try:
             plt.plot(truth[0], label="Truth")
         except:
@@ -474,7 +475,7 @@ def find_error_1(data, model, tol=2e-2, plot=False, i=0, j=0, title="find_error_
         plt.legend()
 
         if file_name is None:
-            file_name = model.model_name + "_" + str(model.step_size) + "_fit_error.pdf"
+            file_name = model.model_name + "_" + str(model.step_size) + "_fit_error.png"
         plt.savefig(file_name)
         print("file saved to ", file_name)
         try:
