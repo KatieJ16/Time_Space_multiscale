@@ -342,7 +342,7 @@ class CAE(torch.nn.Module):
 
 
     def train_arch(self, dataset, max_epoch, batch_size,
-                   tol=None, lr=1e-3, w=0.5, verbose=1):
+                   tol=None, lr=1e-3, w=0.5, verbose=1, cur_level=None):
         """
         :param dataset: a MultiScaleDynamicsDataSet object
         :param max_epoch: maximum number of epochs
@@ -354,7 +354,9 @@ class CAE(torch.nn.Module):
         :return: a list of train_losses, val_losses and timings
         """
         # prepare data at this level
-        train_data, val_data, _ = dataset.obtain_data_at_current_level(self.cur_level)
+        if cur_level is None:
+            cur_level = self.cur_level
+        train_data, val_data, _ = dataset.obtain_data_at_current_level(cur_level)
 
         # specify optimizer
         optimizer = torch.optim.Adam(self.parameters(), lr=lr, eps=1e-3, weight_decay=1e-5)
@@ -464,13 +466,17 @@ class CAE(torch.nn.Module):
 
         # up-sample the small one
         n = self.n_levels - cur_level - 1
-        for _ in range(n):
+#         print("n = ", n)
+        for i in range(n):
             tmp = torch.nn.functional.pad(output, (1, 1, 1, 1), 'replicate')
             output = apply_local_op(tmp, self.device, 'deconv')
             output = output[:, :, 2:-2, 2:-2]
+#             print("i = ", i, ": output shape =", output.shape)
 
         # calculate the loss
         criterion = torch.nn.MSELoss(reduction='none')
+#         print("output shape =", output.shape)
+#         print("data shape = ", data.shape)
         mse_loss = criterion(output, data).mean()
         max_loss = criterion(output*dataset.map_data, data*dataset.map_data).mean(0).max()
         max_pos = criterion(output*dataset.map_data, data*dataset.map_data).mean(0).argmax()
