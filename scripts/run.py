@@ -16,18 +16,18 @@ import ResNet as tnet
 import utils
 import training_class as tc
 
-if torch.cuda.is_available():
-    torch.cuda.set_per_process_memory_fraction(0.5, 0)
+# if torch.cuda.is_available():
+#     torch.cuda.set_per_process_memory_fraction(0.5, 0)
     
 
 
 
 # paths
-data_dir = '../data/toy5b'
-model_dir = '../model/toy5b'
-result_dir = '../result/toy5b'
+data_dir = '../data/toy3a'
+model_dir = '../model/toy3a'
+result_dir = '../result/toy3a'
 
-obj = tc.training_class(data_dir, model_dir, result_dir, resolve_tol=1e-6, n_inputs=4)
+obj = tc.training_class(data_dir, model_dir, result_dir, resolve_tol=1e-6, n_inputs=4, device='cpu')
 
 #train the first step
 obj, resolved = tc.train_one_step(obj, 1, verbose=True,start_k=2, largest_k=3, plot_all_timesteps=True)#, make_new=True)

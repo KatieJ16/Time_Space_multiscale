@@ -144,12 +144,16 @@ def train_next_step(self, current_size, verbose=True, make_new=False,
                 continue
             else:
             #see if the error is low enough on already made model
-                model = self.model_keep[self.model_used_dict[str(int(current_size/2))][i//2, j//2]]
-                old_data, mse = model.predict_mse(data_this)
-                new_data = data_this - old_data[:,;,0]
+                model = self.model_keep[self.model_used_dict[str(int(current_size/2))][i//2][ j//2]]
+                old_data, mse = model.predict_mse(data_this.unsqueeze(2).unsqueeze(3))
+                print("old_data shape = ", old_data.shape)
+                print("data_this shape = ", data_this.shape)
+                new_data = data_this - old_data[:,:,0]
                 print("new_data.shape = ", new_data.shape)
 
                 plt.figure()
+                plt.plot(data_this[0].detach().numpy())
+                plt.plot(old_data[0,:,0].detach().numpy())
                 plt.plot(new_data[0,].detach().numpy())
                 plt.savefig("new_data.pdf")
                 plt.show()
